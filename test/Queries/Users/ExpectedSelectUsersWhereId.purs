@@ -15,7 +15,7 @@ import Schema.UnsafeRemoveFromFail (remove)
 type SelectUsersWhereIdRow =
   { user_id :: Int
   , email :: String
-  , last_name :: Maybe String
+  , last_name :: Maybe (String)
   }
 
 selectUsersWhereId :: forall eff.
@@ -32,13 +32,13 @@ selectUsersWhereId user_id =
       , last_name: remove $ f ! "last_name" >>= readNull >>= traverse decode
       }
 
-
 query_ :: String
 query_ = """
 SELECT user_id,
-       email,
-       last_name
+       users.email,
+       public.users.last_name
 FROM users
-WHERE user_id = $1
+WHERE users.user_id = $1
   AND registered = TRUE
+
 """

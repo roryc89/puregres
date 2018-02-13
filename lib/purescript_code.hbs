@@ -1,0 +1,34 @@
+module Query.Users.SelectUsersWhereId (selectUsersWhereId, SelectUsersWhereIdRow) where
+
+import Prelude
+import DB (query)
+import Control.Monad.Aff (Aff)
+import Data.Foreign (Foreign, readNull)
+import Data.Foreign.Class (decode)
+import Data.Foreign.Index ((!))
+import Database.Postgres.SqlValue (toSql)
+import Data.Maybe (Maybe)
+import Database.Postgres (DB)
+import Data.Traversable (traverse)
+import Schema.UnsafeRemoveFromFail (remove)
+
+type {{{returnTypeName}}} =
+  { {{{returnRecordBody}}}
+  }
+
+{{{functionName}}} :: forall eff.
+  {{{argTypes}}}
+  -> Aff (db :: DB | eff) (Array {{{returnTypeName}}})
+{{{functionName}}} {{{argNames}}} =
+  query query_ [{{{toSqls}}}]
+  # map (map toRow)
+  where
+    toRow :: Foreign -> {{{returnTypeName}}}
+    toRow f =
+      { {{{decodeLogic}}}
+      }
+
+query_ :: String
+query_ = """
+{{{query}}}
+"""

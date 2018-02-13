@@ -4,19 +4,23 @@
   "description": "get typed purescript functions from postgres functions",
   "main": "lib/index.js",
   "scripts": {
-    "test": "node test"
+    "test": "node test",
+    "dif-t": "node test | tap-difflet"
   },
   "author": "Rory Campbell",
   "license": "ISC",
   "devDependencies": {
     "pg": "^7.4.1",
     "standard": "^10.0.3",
+    "tap-difflet": "^0.7.0",
     "tape": "^4.8.0"
   },
   "dependencies": {
+    "camelcase": "^4.1.0",
     "glob": "^7.1.2",
     "handlebars": "^4.0.11",
     "lodash": "^4.17.5",
+    "pascal-case": "^2.0.1",
     "pg-query-parser": "^0.2.1",
     "pg-structure": "^4.0.7",
     "ramda": "^0.25.0"
