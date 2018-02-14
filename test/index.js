@@ -1,3 +1,4 @@
+require('dotenv').config()
 const fs = require('fs')
 const {promisify} = require('util')
 const {Client} = require('pg')
@@ -9,7 +10,7 @@ const readFile = promisify(fs.readFile)
 
 const dbOptions = {
   database: 'test',
-  user: 'rebecacalvoquintero',
+  user: process.env.DB_USER,
   password: '',
   host: 'localhost',
   port: 5432
