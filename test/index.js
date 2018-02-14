@@ -9,7 +9,7 @@ const readFile = promisify(fs.readFile)
 
 const dbOptions = {
   database: 'test',
-  user: 'rorycampbell',
+  user: 'rebecacalvoquintero',
   password: '',
   host: 'localhost',
   port: 5432
@@ -66,5 +66,15 @@ async function runTests (t) {
      expected.toString(),
      'SelectUsersAndOrders.sql should be correctly converted to purescript, ' +
      ' handling a join.'
+  )
+
+  result = await readFile('test/Queries/Users/SelectWith2Joins.generated.purs')
+  expected = await readFile('test/Queries/Users/ExpectedSelectWith2Joins.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectWith2Joins.sql should be correctly converted to purescript, ' +
+     ' handling 2 joins.'
     )
 }

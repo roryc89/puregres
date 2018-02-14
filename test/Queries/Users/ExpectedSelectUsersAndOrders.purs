@@ -10,7 +10,7 @@ import Database.Postgres.SqlValue (toSql)
 import Data.Maybe (Maybe)
 import Database.Postgres (DB)
 import Data.Traversable (traverse)
-import Schema.UnsafeRemoveFromFail (remove)
+import Schema.UnsafeRemoveFromFail (unsafeRemoveFromFail)
 
 type SelectUsersAndOrdersRow =
   { email :: String
@@ -28,9 +28,9 @@ selectUsersAndOrders item_id user_id =
   where
     toRow :: Foreign -> SelectUsersAndOrdersRow
     toRow f =
-      { email: remove $ f ! "email" >>= decode
-      , order_id: remove $ f ! "order_id" >>= decode
-      , item_id: remove $ f ! "item_id" >>= readNull >>= traverse decode
+      { email: unsafeRemoveFromFail $ f ! "email" >>= decode
+      , order_id: unsafeRemoveFromFail $ f ! "order_id" >>= decode
+      , item_id: unsafeRemoveFromFail $ f ! "item_id" >>= readNull >>= traverse decode
       }
 
 query_ :: String
