@@ -11,7 +11,7 @@ const readFile = promisify(fs.readFile)
 const dbOptions = {
   database: 'test',
   user: process.env.DB_USER,
-  password: '',
+  password: process.env.DB_PASSWORD || '',
   host: 'localhost',
   port: 5432
 }
