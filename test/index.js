@@ -49,44 +49,54 @@ async function runTests (t) {
 
   await puregres(options)
   let result
-  let expected 
+  let expected
   result = await readFile('test/Queries/Users/SelectUsersWhereId.generated.purs')
   expected = await readFile('test/Queries/Users/ExpectedSelectUsersWhereId.purs')
-  
+
   t.equal(
     result.toString(),
     expected.toString(),
     'SelectUsersWhereId.sql should be correctly converted to purescript' +
     ' handling a mix of full and partial column names.'
    )
-  
+
   result = await readFile('test/Queries/Users/SelectUsersAndOrders.generated.purs')
   expected = await readFile('test/Queries/Users/ExpectedSelectUsersAndOrders.purs')
-  
+
   t.equal(
      result.toString(),
      expected.toString(),
      'SelectUsersAndOrders.sql should be correctly converted to purescript, ' +
      ' handling a join.'
   )
-  
+
   result = await readFile('test/Queries/Users/SelectWith2Joins.generated.purs')
   expected = await readFile('test/Queries/Users/ExpectedSelectWith2Joins.purs')
-  
+
   t.equal(
      result.toString(),
      expected.toString(),
      'SelectWith2Joins.sql should be correctly converted to purescript, ' +
      ' handling 2 joins.'
     )
-    
+
   result = await readFile('test/Queries/Users/SelectWithSubQuery.generated.purs')
   expected = await readFile('test/Queries/Users/ExpectedSelectWithSubQuery.purs')
-  
+
   t.equal(
      result.toString(),
      expected.toString(),
      'SelectWithSubQuery.sql should be correctly converted to purescript, ' +
      ' handling a sub query.'
     )
+
+  // result = await readFile('test/Queries/Users/SelectWithLeftJoin.generated.purs')
+  // expected = await readFile('test/Queries/Users/ExpectedSelectWithLeftJoin.purs')
+  //
+  // t.equal(
+  //    result.toString(),
+  //    expected.toString(),
+  //    'SelectWithLeftJoin.sql should be correctly converted to purescript, ' +
+  //    ' handling a left join.'
+  //   )
 }
