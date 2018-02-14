@@ -5,8 +5,14 @@ CREATE TABLE users (
   registered BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE TABLE items (
+  item_id SERIAL PRIMARY KEY,
+  item_name TEXT NOT NULL,
+  item_description TEXT
+);
+
 CREATE TABLE orders (
   order_id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(user_id),
-  item TEXT NOT NULL
+  item_id INTEGER REFERENCES items(item_id)
 );

@@ -48,14 +48,23 @@ async function runTests (t) {
   }
 
   await puregres(options)
-  const result = await readFile('test/Queries/Users/SelectUsersWhereId.generated.purs')
-  const expected = await readFile('test/Queries/Users/ExpectedSelectUsersWhereId.purs')
+  let result = await readFile('test/Queries/Users/SelectUsersWhereId.generated.purs')
+  let expected = await readFile('test/Queries/Users/ExpectedSelectUsersWhereId.purs')
 
   t.equal(
     result.toString(),
     expected.toString(),
-    'SelectUsersWhereId.sql should be correctly converted to purescript'
+    'SelectUsersWhereId.sql should be correctly converted to purescript' +
+    ' handling a mix of full and partial column names.'
    )
 
-  console.log('running tests')
+  result = await readFile('test/Queries/Users/SelectUsersAndOrders.generated.purs')
+  expected = await readFile('test/Queries/Users/ExpectedSelectUsersAndOrders.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectUsersAndOrders.sql should be correctly converted to purescript, ' +
+     ' handling a join.'
+    )
 }
