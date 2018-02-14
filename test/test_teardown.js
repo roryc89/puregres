@@ -4,7 +4,7 @@ const testTeardownQuery = fs.readFileSync('test/test_teardown.sql').toString()
 
 module.exports = async function (client) {
   await Promise.all([
-    del(['Queries/**/*.generated.purs']),
+    del(['**/*.generated.purs']),
     client.query(testTeardownQuery)
   ])
 }
