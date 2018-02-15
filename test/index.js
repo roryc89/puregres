@@ -102,4 +102,24 @@ async function runTests (t) {
      'SelectWithLeftJoin.sql should be correctly converted to purescript, ' +
      ' handling a left join.'
     )
+
+  result = await readFile('test/Queries/Users/SelectWithRightJoin.generated.purs')
+  expected = await readFile('test/Queries/Users/ExpectedSelectWithRightJoin.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectWithRightJoin.sql should be correctly converted to purescript, ' +
+     ' handling a right join.'
+    )
+
+  result = await readFile('test/Queries/Users/SelectWithOuterJoin.generated.purs')
+  expected = await readFile('test/Queries/Users/ExpectedSelectWithOuterJoin.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectWithOuterJoin.sql should be correctly converted to purescript, ' +
+     ' handling an outer join.'
+    )
 }
