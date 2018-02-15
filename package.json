@@ -1,6 +1,6 @@
 {
   "name": "puregres",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "get typed purescript functions from postgres functions",
   "main": "lib/index.js",
   "scripts": {
