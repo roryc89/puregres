@@ -10,7 +10,7 @@ import Database.Postgres.SqlValue (toSql)
 import Data.Maybe (Maybe)
 import Database.Postgres (DB)
 import Data.Traversable (traverse)
-import Schema.UnsafeRemoveFromFail (unsafeRemoveFromFail)
+import Puregres.UnsafeRemoveFromFail (unsafeRemoveFromFail)
 
 type SelectUsersAndOrdersRow =
   { email :: String

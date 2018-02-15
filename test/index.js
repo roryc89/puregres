@@ -49,8 +49,10 @@ async function runTests (t) {
   }
 
   await puregres(options)
+
   let result
   let expected
+
   result = await readFile('test/Queries/Users/SelectUsersWhereId.generated.purs')
   expected = await readFile('test/Queries/Users/ExpectedSelectUsersWhereId.purs')
 
@@ -91,13 +93,13 @@ async function runTests (t) {
      ' handling a sub query.'
     )
 
-  // result = await readFile('test/Queries/Users/SelectWithLeftJoin.generated.purs')
-  // expected = await readFile('test/Queries/Users/ExpectedSelectWithLeftJoin.purs')
-  //
-  // t.equal(
-  //    result.toString(),
-  //    expected.toString(),
-  //    'SelectWithLeftJoin.sql should be correctly converted to purescript, ' +
-  //    ' handling a left join.'
-  //   )
+  result = await readFile('test/Queries/Users/SelectWithLeftJoin.generated.purs')
+  expected = await readFile('test/Queries/Users/ExpectedSelectWithLeftJoin.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectWithLeftJoin.sql should be correctly converted to purescript, ' +
+     ' handling a left join.'
+    )
 }
