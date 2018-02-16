@@ -1,6 +1,6 @@
 {
   "name": "puregres",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "get typed purescript functions from postgres functions",
   "main": "lib/index.js",
   "scripts": {
@@ -9,9 +9,9 @@
   },
   "author": "Rory Campbell",
   "license": "ISC",
-  "repository" :
-    { "type" : "git"
-    , "url" : "https://github.com/roryc89/puregres"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/roryc89/puregres"
   },
   "devDependencies": {
     "dotenv": "^5.0.0",
