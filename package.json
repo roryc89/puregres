@@ -9,6 +9,10 @@
   },
   "author": "Rory Campbell",
   "license": "ISC",
+  "repository" :
+    { "type" : "git"
+    , "url" : "https://github.com/roryc89/puregres"
+  },
   "devDependencies": {
     "dotenv": "^5.0.0",
     "pg": "^7.4.1",
