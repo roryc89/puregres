@@ -1,4 +1,4 @@
-module Query.Users.SelectWith2Joins (selectWith2Joins, SelectWith2JoinsRow) where
+module Query.Select.SelectWith2Joins (selectWith2Joins, SelectWith2JoinsRow) where
 
 import Prelude
 import DB (query)

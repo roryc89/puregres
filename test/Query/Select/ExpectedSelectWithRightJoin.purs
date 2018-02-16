@@ -1,4 +1,4 @@
-module Query.Users.SelectUsersAndOrders (selectUsersAndOrders, SelectUsersAndOrdersRow) where
+module Query.Select.SelectWithRightJoin (selectWithRightJoin, SelectWithRightJoinRow) where
 
 import Prelude
 import DB (query)
@@ -12,23 +12,22 @@ import Database.Postgres (DB)
 import Data.Traversable (traverse)
 import Puregres.UnsafeRemoveFromFail (unsafeRemoveFromFail)
 
-type SelectUsersAndOrdersRow =
-  { email :: String
+type SelectWithRightJoinRow =
+  { email :: Maybe (String)
   , order_id :: Int
   , item_id :: Maybe (Int)
   }
 
-selectUsersAndOrders :: forall eff.
+selectWithRightJoin :: forall eff.
   Int
-  -> Int
-  -> Aff (db :: DB | eff) (Array SelectUsersAndOrdersRow)
-selectUsersAndOrders item_id user_id =
-  query query_ [toSql item_id, toSql user_id]
+  -> Aff (db :: DB | eff) (Array SelectWithRightJoinRow)
+selectWithRightJoin item_id =
+  query query_ [toSql item_id]
   # map (map toRow)
   where
-    toRow :: Foreign -> SelectUsersAndOrdersRow
+    toRow :: Foreign -> SelectWithRightJoinRow
     toRow f =
-      { email: unsafeRemoveFromFail $ f ! "email" >>= decode
+      { email: unsafeRemoveFromFail $ f ! "email" >>= readNull >>= traverse decode
       , order_id: unsafeRemoveFromFail $ f ! "order_id" >>= decode
       , item_id: unsafeRemoveFromFail $ f ! "item_id" >>= readNull >>= traverse decode
       }
@@ -39,9 +38,8 @@ SELECT email,
        order_id,
        item_id
 FROM users
-INNER JOIN orders
+RIGHT JOIN orders
   ON users.user_id = orders.user_id
-WHERE users.user_id = $2
-  AND item_id = $1
+WHERE orders.item_id = $1
 
 """

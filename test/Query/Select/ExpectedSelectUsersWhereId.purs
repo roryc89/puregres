@@ -1,4 +1,4 @@
-module Query.Users.SelectUsersWhereId (selectUsersWhereId, SelectUsersWhereIdRow) where
+module Query.Select.SelectUsersWhereId (selectUsersWhereId, SelectUsersWhereIdRow) where
 
 import Prelude
 import DB (query)

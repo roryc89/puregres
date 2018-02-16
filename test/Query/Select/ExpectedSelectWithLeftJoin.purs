@@ -1,4 +1,4 @@
-module Query.Users.SelectWithLeftJoin (selectWithLeftJoin, SelectWithLeftJoinRow) where
+module Query.Select.SelectWithLeftJoin (selectWithLeftJoin, SelectWithLeftJoinRow) where
 
 import Prelude
 import DB (query)

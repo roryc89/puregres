@@ -1,4 +1,4 @@
-module Query.Users.SelectWithSubQuery (selectWithSubQuery, SelectWithSubQueryRow) where
+module Query.Select.SelectWithSubQuery (selectWithSubQuery, SelectWithSubQueryRow) where
 
 import Prelude
 import DB (query)

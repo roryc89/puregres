@@ -1,4 +1,4 @@
-module Query.Users.SelectWithOuterJoin (selectWithOuterJoin, SelectWithOuterJoinRow) where
+module Query.Select.SelectUsersAndOrders (selectUsersAndOrders, SelectUsersAndOrdersRow) where
 
 import Prelude
 import DB (query)
@@ -12,23 +12,24 @@ import Database.Postgres (DB)
 import Data.Traversable (traverse)
 import Puregres.UnsafeRemoveFromFail (unsafeRemoveFromFail)
 
-type SelectWithOuterJoinRow =
-  { email :: Maybe (String)
-  , order_id :: Maybe (Int)
+type SelectUsersAndOrdersRow =
+  { email :: String
+  , order_id :: Int
   , item_id :: Maybe (Int)
   }
 
-selectWithOuterJoin :: forall eff.
+selectUsersAndOrders :: forall eff.
   Int
-  -> Aff (db :: DB | eff) (Array SelectWithOuterJoinRow)
-selectWithOuterJoin item_id =
-  query query_ [toSql item_id]
+  -> Int
+  -> Aff (db :: DB | eff) (Array SelectUsersAndOrdersRow)
+selectUsersAndOrders item_id user_id =
+  query query_ [toSql item_id, toSql user_id]
   # map (map toRow)
   where
-    toRow :: Foreign -> SelectWithOuterJoinRow
+    toRow :: Foreign -> SelectUsersAndOrdersRow
     toRow f =
-      { email: unsafeRemoveFromFail $ f ! "email" >>= readNull >>= traverse decode
-      , order_id: unsafeRemoveFromFail $ f ! "order_id" >>= readNull >>= traverse decode
+      { email: unsafeRemoveFromFail $ f ! "email" >>= decode
+      , order_id: unsafeRemoveFromFail $ f ! "order_id" >>= decode
       , item_id: unsafeRemoveFromFail $ f ! "item_id" >>= readNull >>= traverse decode
       }
 
@@ -38,8 +39,9 @@ SELECT email,
        order_id,
        item_id
 FROM users
-FULL OUTER JOIN orders
+INNER JOIN orders
   ON users.user_id = orders.user_id
-WHERE orders.item_id = $1
+WHERE users.user_id = $2
+  AND item_id = $1
 
 """

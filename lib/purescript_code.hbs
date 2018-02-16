@@ -1,4 +1,4 @@
-module Query.Users.{{{moduleName}}} ({{{functionName}}}, {{{returnTypeName}}}) where
+module {{{moduleNameAndPath}}} ({{{functionName}}}, {{{returnTypeName}}}) where
 
 import Prelude
 import DB (query)
@@ -18,7 +18,7 @@ type {{{returnTypeName}}} =
 
 {{{functionName}}} :: forall eff.
   {{{argTypes}}}
-  -> Aff (db :: DB | eff) (Array {{{returnTypeName}}})
+  {{#if hasArgs}}-> {{/if}}Aff (db :: DB | eff) (Array {{{returnTypeName}}})
 {{{functionName}}} {{{argNames}}} =
   query query_ [{{{toSqls}}}]
   # map (map toRow)

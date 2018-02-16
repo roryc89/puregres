@@ -45,7 +45,8 @@ async function runTests (t) {
   const options = {
     ...dbOptions,
     schema: 'public',
-    pattern: 'test/Queries/**/*.sql'
+    pattern: 'test/Query/**/*.sql',
+    pureRoot: 'Query' // which file should the top module ancestor
   }
 
   await puregres(options)
@@ -53,8 +54,8 @@ async function runTests (t) {
   let result
   let expected
 
-  result = await readFile('test/Queries/Users/SelectUsersWhereId.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectUsersWhereId.purs')
+  result = await readFile('test/Query/Select/SelectUsersWhereId.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectUsersWhereId.purs')
 
   t.equal(
     result.toString(),
@@ -63,8 +64,8 @@ async function runTests (t) {
     ' handling a mix of full and partial column names.'
    )
 
-  result = await readFile('test/Queries/Users/SelectUsersAndOrders.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectUsersAndOrders.purs')
+  result = await readFile('test/Query/Select/SelectUsersAndOrders.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectUsersAndOrders.purs')
 
   t.equal(
      result.toString(),
@@ -73,8 +74,8 @@ async function runTests (t) {
      ' handling a join.'
   )
 
-  result = await readFile('test/Queries/Users/SelectWith2Joins.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectWith2Joins.purs')
+  result = await readFile('test/Query/Select/SelectWith2Joins.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWith2Joins.purs')
 
   t.equal(
      result.toString(),
@@ -83,8 +84,8 @@ async function runTests (t) {
      ' handling 2 joins.'
     )
 
-  result = await readFile('test/Queries/Users/SelectWithSubQuery.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectWithSubQuery.purs')
+  result = await readFile('test/Query/Select/SelectWithSubQuery.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWithSubQuery.purs')
 
   t.equal(
      result.toString(),
@@ -93,8 +94,8 @@ async function runTests (t) {
      ' handling a sub query.'
     )
 
-  result = await readFile('test/Queries/Users/SelectWithLeftJoin.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectWithLeftJoin.purs')
+  result = await readFile('test/Query/Select/SelectWithLeftJoin.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWithLeftJoin.purs')
 
   t.equal(
      result.toString(),
@@ -103,8 +104,8 @@ async function runTests (t) {
      ' handling a left join.'
     )
 
-  result = await readFile('test/Queries/Users/SelectWithRightJoin.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectWithRightJoin.purs')
+  result = await readFile('test/Query/Select/SelectWithRightJoin.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWithRightJoin.purs')
 
   t.equal(
      result.toString(),
@@ -113,13 +114,23 @@ async function runTests (t) {
      ' handling a right join.'
     )
 
-  result = await readFile('test/Queries/Users/SelectWithOuterJoin.generated.purs')
-  expected = await readFile('test/Queries/Users/ExpectedSelectWithOuterJoin.purs')
+  result = await readFile('test/Query/Select/SelectWithOuterJoin.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWithOuterJoin.purs')
 
   t.equal(
      result.toString(),
      expected.toString(),
      'SelectWithOuterJoin.sql should be correctly converted to purescript, ' +
      ' handling an outer join.'
+    )
+
+  result = await readFile('test/Query/Select/SelectWithNoWhere.generated.purs')
+  expected = await readFile('test/Query/Select/ExpectedSelectWithNoWhere.purs')
+
+  t.equal(
+     result.toString(),
+     expected.toString(),
+     'SelectWithNoWhere.sql should be correctly converted to purescript, ' +
+     ' handling a query with no where clause.'
     )
 }
