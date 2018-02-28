@@ -23,16 +23,6 @@ data SelectExpr
   | InnerJoin SelectExpr On
   | TableExpr Table
 
--- data SelectExpr2 a
---   = LeftJoin2 (SelectExpr2 a) (On2 (NullOrUndefined a))
---   | InnerJoin2 (SelectExpr2 a) (On2 a)
---   | TableExpr2 Table (Column a)
---
--- data On2 a = On2 String (SelectExpr2 a)
---
--- instance selectExprFunctor :: Functor SelectExpr2 where
---   map f (TableExpr2 _ a) =
-
 instance selectExprShow :: Show SelectExpr where
   show (LeftJoin sel on) = " \n " <> show sel <> " LEFT JOIN " <> " " <> show on
   show (InnerJoin sel on) = " \n " <> show sel <> " INNER JOIN " <> " " <> show on
@@ -46,11 +36,8 @@ instance onShow :: Show On where
 on :: forall a. Table -> EqC a -> On
 on s (EqC (Column c1) (Column c2)) = On ("\n On " <> c1.serialized <> " = " <> c2.serialized) (TableExpr s)
 
-
--- leftJoin :: SelectExpr -> (SelectExpr -> On) -> SelectExpr
 leftJoin :: SelectExpr -> On -> SelectExpr
 leftJoin = LeftJoin
-
 
 data EqC a = EqC (Column a) (Column a)
 
@@ -114,9 +101,9 @@ reasonColNotValidInSelect isMaybeColumn col sel = case (go false col sel) of
         TableExpr table -> if (table == c.table) then [isMaybe] else []
 
 colIntoFrom_ :: forall a b. Boolean -> Column a -> From (a -> b) -> Either String (From (Column b))
-colIntoFrom_ isMaybe colv (From sel f) =
+colIntoFrom_ isMaybe colv (From f sel) =
   case reasonColNotValidInSelect isMaybe colv sel of
-    Nothing -> Right $ From sel (f <$> colv)
+    Nothing -> Right $ From (f <$> colv) sel
     Just reason -> Left reason
 
 colIntoFrom :: forall a b. Column a -> From (a -> b) -> Either String (From (Column b))
@@ -126,9 +113,9 @@ maybeColIntoFrom :: forall b a. Decode a => Column a -> From (Maybe a -> b) -> E
 maybeColIntoFrom col = colIntoFrom_ true (addMaybe col)
 
 anotherColIntoFrom_ :: forall a b. Boolean -> Column a -> Either String (From (Column (a -> b))) -> Either String (From (Column b))
-anotherColIntoFrom_ isMaybe colv eFrom = bind eFrom \(From sel f) ->
+anotherColIntoFrom_ isMaybe colv eFrom = bind eFrom \(From f sel) ->
   case reasonColNotValidInSelect isMaybe colv sel of
-    Nothing -> Right $ From sel (f <*> colv)
+    Nothing -> Right $ From (f <*> colv) sel
     Just reason -> Left reason
 
 anotherColIntoFrom :: forall a b. Column a -> Either String (From (Column (a -> b))) -> Either String (From (Column b))
@@ -137,10 +124,7 @@ anotherColIntoFrom = anotherColIntoFrom_ false
 maybeAnotherColIntoFrom :: forall a b. Decode a => Column a -> Either String (From (Column (Maybe a -> b))) -> Either String (From (Column b))
 maybeAnotherColIntoFrom col = anotherColIntoFrom_ true (addMaybe col)
 
-data From a = From SelectExpr a
-
-from :: forall a. a -> SelectExpr -> From a
-from = flip From
+data From a = From a SelectExpr
 
 infixr 4 colIntoFrom as <<
 infixl 4 maybeColIntoFrom as <<?
@@ -194,7 +178,6 @@ getOrdersByItemId itemId = select
   ({order_id:_, user_id:_} <$> order_id &* user_id)
   (TableExpr Items.items
     `InnerJoin` (orders `on` (Items.item_id `eqC` item_id)))
-    -- `InnerJoin` (users `on` ())
   [ whereNull order_notes
   , is item_id itemId
   ]
@@ -213,12 +196,3 @@ item_id = makeColumn orders "item_id"
 
 order_notes :: Column (NullOrUndefined String)
 order_notes = makeColumn orders "order_notes"
-
--- select from Items (item_id &* item_name) `InnerJoin`
--- select :: Column a ->
--- decer :: forall a. Decode a => ColumnAndSelect a -> Foreign -> F a
-
---
---
--- andSelectCol :: forall a b. ColumnAndSelect (a -> b) -> ColumnAndSelect a -> ColumnAndSelect b
--- andSelectCol c0 c1 = (c0 <*> c1)
