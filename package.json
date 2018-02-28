@@ -1,7 +1,7 @@
 {
   "name": "puregres",
   "version": "1.0.4",
-  "description": "get typed purescript functions from postgres functions",
+  "description": "Write type safe postgres within purescript",
   "main": "lib/index.js",
   "scripts": {
     "test": "node test",
