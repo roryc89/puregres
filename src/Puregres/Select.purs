@@ -2,22 +2,17 @@ module Puregres.Select where
 
 import Prelude
 
-import Control.Monad.Aff (Aff)
-import Data.Array (length, mapWithIndex)
+import Data.Array (mapWithIndex)
 import Data.Either (Either(..))
 import Data.Foldable (null)
-import Data.Foreign (F, Foreign)
 import Data.Foreign.Class (class Decode)
-import Data.Foreign.NullOrUndefined (NullOrUndefined)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Traversable (sequence)
 import Database.Postgres (Client, DB, Query(..), query)
 import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
 import Database.Postgres.SqlValue (SqlValue)
-import ExpectedTables.Items as Items
-import Puregres.Type (Column(Column), Table(Table), addMaybe, andCol, makeColumn)
-import Unsafe.Coerce (unsafeCoerce)
+import Puregres.Type (Column(Column), Table, addMaybe, andCol)
 
 data SELECT a = SELECT (From a) (Array WhereExpr) (Array Order)
 
@@ -194,26 +189,3 @@ infixl 3 anotherColIntoFrom as &*
 infixl 3 anotherColIntoFromFlipped as *&
 infixl 3 maybeAnotherColIntoFrom as &?
 infixl 3 maybeAnotherColIntoFromFlipped as ?&
-
-fakeClient :: Client
-fakeClient = unsafeCoerce unit
-
-fromExpr :: FromExpr
-fromExpr =
-  TABLE Items.items
-    `INNER_JOIN` (orders `on` (Items.item_id `eqC` item_id))
-
-orders :: Table
-orders = Table "public.orders"
-
-order_id :: Column Int
-order_id = makeColumn orders "order_id"
-
-user_id :: Column Int
-user_id = makeColumn orders "user_id"
-
-item_id :: Column Int
-item_id = makeColumn orders "item_id"
-
-order_notes :: Column (NullOrUndefined String)
-order_notes = makeColumn orders "order_notes"
