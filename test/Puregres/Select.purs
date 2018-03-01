@@ -1,13 +1,125 @@
 module Test.Puregres.Select where
 
 import Prelude
+
 import Control.Monad.Free (Free)
+import Data.Either (either, isRight, Either)
+import Data.Foreign.NullOrUndefined (NullOrUndefined)
+import Data.Maybe (Maybe)
+import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**))
+import Puregres.Type (Column, Table(..), makeColumn)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
 
-run :: forall t1. Free (TestF t1) Unit
-run = suite "Test.Puregres.Select" do
-    test "should " do
-      Assert.assert "2 + 2 should be 4" $ (2 + 2) == 4
-      Assert.assertFalse "2 + 2 shouldn't be 5" $ (2 + 2) == 5
-      Assert.equal 4 (2 + 2)
+runTest :: forall a. Free (TestF a) Unit
+runTest = suite "Test.Puregres.Select" do
+    test "SELECT type should be shown as a sql string for correctly formed queries" do
+
+      Assert.assert "simpleSelect Either should be a Right constructor" (isRight simpleSelect)
+      Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
+
+      Assert.assert "multiColumSelect Either (with flipped functions) should be a Right constructor" (isRight multiColumSelect)
+      Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
+
+      Assert.assert "leftJoinSelect Either should be a Right constructor" (isRight leftJoinSelect)
+      Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
+
+      Assert.assert "innerJoinSelect Either should be a Right constructor" (isRight innerJoinSelect)
+      Assert.equal expectedShowInnerJoinSelect (either (const "") show innerJoinSelect)
+
+      Assert.assert "whereSelect Either should be a Right constructor" (isRight whereSelect)
+      Assert.equal expectedShowWhereSelect (either (const "") show whereSelect)
+
+simpleSelect :: Either String ( SELECT ( Column { email :: String } ) )
+simpleSelect =
+  select $
+    email <** {email:_}
+    `From` (TABLE users)
+
+expectedShowSimpleSelect :: String
+expectedShowSimpleSelect = "SELECT public.users.email\nFROM public.users"
+
+multiColumSelect :: Either String ( SELECT ( Column { user_id :: Int, name :: NullOrUndefined String } ) )
+multiColumSelect =
+  select $
+    (TABLE users) `fromF` -- Flipping reads less like sql but allows columns to line up
+    { user_id:_, name:_} **>
+      user_id *& name
+
+expectedShowMultiColumnSelect :: String
+expectedShowMultiColumnSelect =
+  """SELECT public.users.user_id, public.users.name
+FROM public.users"""
+
+innerJoinSelect :: Either String ( SELECT ( Column { order_id :: Int, email :: String } ) )
+innerJoinSelect = select $
+  order_id &* email <** {email:_, order_id:_}
+  `From` (TABLE users
+    `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
+  )
+expectedShowInnerJoinSelect :: String
+expectedShowInnerJoinSelect =
+  """SELECT public.users.email, public.orders.order_id
+FROM public.users
+  INNER JOIN public.orders ON public.users.user_id = public.orders.user_id"""
+
+leftJoinSelect :: Either String ( SELECT ( Column { order_id :: Maybe Int, email :: String } ) )
+leftJoinSelect = select $
+  order_id &? email <** {email:_, order_id:_}
+  `From` (TABLE users
+    `LEFT_JOIN` (orders `on` (user_id `eqC` order_user_id))
+  )
+expectedShowLeftJoinSelect :: String
+expectedShowLeftJoinSelect =
+  """SELECT public.users.email, public.orders.order_id
+FROM public.users
+  LEFT JOIN public.orders ON public.users.user_id = public.orders.user_id"""
+
+whereSelect :: Either String ( SELECT ( Column { user_id :: Int, order_id :: Int } ) )
+whereSelect = select (
+    user_id &* order_id <** {order_id:_, user_id:_}
+    `From` (TABLE users
+      `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
+    )
+  ) `where_`
+    [ email `is` "testemail@gmail.com"
+    , registered `is` true -- booleans has to be wrapped as not included as Sql values
+    ]
+
+expectedShowWhereSelect :: String
+expectedShowWhereSelect =
+  """SELECT public.orders.order_id, public.users.user_id
+FROM public.users
+  INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
+WHERE public.users.email = $1
+AND public.users.registered = $2"""
+
+orders :: Table
+orders = Table "public.orders"
+
+order_id :: Column Int
+order_id = makeColumn orders "order_id"
+
+item_id :: Column Int
+item_id = makeColumn orders "item_id"
+
+order_notes :: Column (NullOrUndefined String)
+order_notes = makeColumn orders "order_notes"
+
+order_user_id :: Column Int
+order_user_id = makeColumn orders "user_id"
+
+users :: Table
+users = Table "public.users"
+
+user_id :: Column Int
+user_id = makeColumn users "user_id"
+
+name :: Column (NullOrUndefined String)
+name = makeColumn users "name"
+
+email :: Column String
+email = makeColumn users "email"
+
+registered :: Column Boolean
+registered = makeColumn users "registered"

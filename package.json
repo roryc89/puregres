@@ -4,20 +4,21 @@
   "description": "Write type safe postgres within purescript",
   "main": "lib/index.js",
   "scripts": {
-    "test": "node test",
-    "dif-t": "node test | tap-difflet"
+    "test": "pulp test | tap-spec",
+    "dif-t": "pulp test | tap-difflet"
   },
   "author": "Rory Campbell",
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/roryc89/puregres"
+    "url": "git+https://github.com/roryc89/puregres.git"
   },
   "devDependencies": {
     "dotenv": "^5.0.0",
     "pg": "^7.4.1",
     "standard": "^10.0.3",
     "tap-difflet": "^0.7.0",
+    "tap-spec": "^4.1.1",
     "tape": "^4.8.0"
   },
   "dependencies": {
@@ -28,5 +29,13 @@
     "pg-query-parser": "^0.2.1",
     "pg-structure": "^4.0.7",
     "ramda": "^0.25.0"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/roryc89/puregres/issues"
+  },
+  "homepage": "https://github.com/roryc89/puregres#readme",
+  "directories": {
+    "test": "test"
+  },
+  "keywords": ["postgres", "purescript", "db", "types"]
 }

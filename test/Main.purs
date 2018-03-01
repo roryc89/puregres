@@ -18,4 +18,4 @@ main :: forall t1.
     )
     Unit
 main = runTest do
-  Select.run
+  Select.runTest
