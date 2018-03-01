@@ -3,32 +3,61 @@ module Test.Puregres.Select where
 import Prelude
 
 import Control.Monad.Free (Free)
-import Data.Either (either, isRight, Either)
+import Data.Either (Either, either, isLeft, isRight)
 import Data.Foreign.NullOrUndefined (NullOrUndefined)
 import Data.Maybe (Maybe)
-import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**))
+import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??))
 import Puregres.Type (Column, Table(..), makeColumn)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
 
 runTest :: forall a. Free (TestF a) Unit
 runTest = suite "Test.Puregres.Select" do
-    test "SELECT type should be shown as a sql string for correctly formed queries" do
+    suite "select function" do
+      suite "return value should be a Right contructor containing a SELECT, shown as a sql string for correctly formed queries" do
 
-      Assert.assert "simpleSelect Either should be a Right constructor" (isRight simpleSelect)
-      Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
+        test "simpleSelect" do
 
-      Assert.assert "multiColumSelect Either (with flipped functions) should be a Right constructor" (isRight multiColumSelect)
-      Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
+          Assert.assert "simpleSelect Either should be a Right constructor" (isRight simpleSelect)
+          Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
 
-      Assert.assert "leftJoinSelect Either should be a Right constructor" (isRight leftJoinSelect)
-      Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
+        test "multiColumSelect" do
 
-      Assert.assert "innerJoinSelect Either should be a Right constructor" (isRight innerJoinSelect)
-      Assert.equal expectedShowInnerJoinSelect (either (const "") show innerJoinSelect)
+          Assert.assert "multiColumSelect Either (with flipped functions) should be a Right constructor" (isRight multiColumSelect)
+          Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
 
-      Assert.assert "whereSelect Either should be a Right constructor" (isRight whereSelect)
-      Assert.equal expectedShowWhereSelect (either (const "") show whereSelect)
+        test "leftJoinSelect" do
+
+          Assert.assert "leftJoinSelect Either should be a Right constructor" (isRight leftJoinSelect)
+          Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
+
+        test "innerJoinSelect" do
+
+          Assert.assert "innerJoinSelect Either should be a Right constructor" (isRight innerJoinSelect)
+          Assert.equal expectedShowInnerJoinSelect (either (const "") show innerJoinSelect)
+
+        test "whereSelect" do
+
+          Assert.assert "whereSelect Either should be a Right constructor" (isRight whereSelect)
+          Assert.equal expectedShowWhereSelect (either (const "") show whereSelect)
+
+      -- TODO: figure out how to encode these into the type system to make them impossible
+      suite "select result should be a Left contructor if the query is invalid" do
+
+        test "query with column not in table" do
+
+          let query = order_id <** {order_id:_} `From` (TABLE users)
+          Assert.assert "Either should be a Left constructor" (isLeft query)
+
+        test "query using maybe column combinator when it should not" do
+
+          let query = email <?? {email:_} `From` (TABLE users)
+          Assert.assert "Either should be a Left constructor" (isLeft query)
+
+        test "query not using maybe column combinator when it should" do
+
+          let query = email <** {email:_} `From` (TABLE users)
+          Assert.assert "Either should be a Left constructor" (isLeft query)
 
 simpleSelect :: Either String ( SELECT ( Column { email :: String } ) )
 simpleSelect =

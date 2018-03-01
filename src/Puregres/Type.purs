@@ -9,8 +9,6 @@ import Data.Foreign.Index ((!))
 import Data.Foreign.NullOrUndefined (NullOrUndefined)
 import Data.Maybe (Maybe)
 import Data.Traversable (traverse)
-import Database.Postgres.SqlValue (SqlValue)
-import Unsafe.Coerce (unsafeCoerce)
 
 newtype Column a = Column
   { serialized :: String
