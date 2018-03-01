@@ -63,7 +63,3 @@ makeColumn table serialized = Column
   , table: table
   , d: \f -> f ! serialized >>= decode
   }
-
-
-class ColumnDecode c where
-  dec :: Foreign -> F c

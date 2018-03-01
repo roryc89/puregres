@@ -6,7 +6,7 @@ import Control.Monad.Free (Free)
 import Data.Either (Either, either, isLeft, isRight)
 import Data.Foreign.NullOrUndefined (NullOrUndefined)
 import Data.Maybe (Maybe)
-import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??))
+import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??), orderBy, asc, desc)
 import Puregres.Type (Column, Table(..), makeColumn)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
@@ -18,28 +18,33 @@ runTest = suite "Test.Puregres.Select" do
 
         test "simpleSelect" do
 
-          Assert.assert "simpleSelect Either should be a Right constructor" (isRight simpleSelect)
+          Assert.assert "Either should be a Right constructor" (isRight simpleSelect)
           Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
 
-        test "multiColumSelect" do
+        test "multiColumSelect (with flipped functions)" do
 
-          Assert.assert "multiColumSelect Either (with flipped functions) should be a Right constructor" (isRight multiColumSelect)
+          Assert.assert "multiColumSelect Either  should be a Right constructor" (isRight multiColumSelect)
           Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
 
         test "leftJoinSelect" do
 
-          Assert.assert "leftJoinSelect Either should be a Right constructor" (isRight leftJoinSelect)
+          Assert.assert "Either should be a Right constructor" (isRight leftJoinSelect)
           Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
 
         test "innerJoinSelect" do
 
-          Assert.assert "innerJoinSelect Either should be a Right constructor" (isRight innerJoinSelect)
+          Assert.assert "Either should be a Right constructor" (isRight innerJoinSelect)
           Assert.equal expectedShowInnerJoinSelect (either (const "") show innerJoinSelect)
 
         test "whereSelect" do
 
-          Assert.assert "whereSelect Either should be a Right constructor" (isRight whereSelect)
+          Assert.assert "Either should be a Right constructor" (isRight whereSelect)
           Assert.equal expectedShowWhereSelect (either (const "") show whereSelect)
+
+        test "orderBySelect" do
+
+          Assert.assert "Either should be a Right constructor" (isRight orderBySelect)
+          Assert.equal expectedShowOrderBySelect (either (const "") show orderBySelect)
 
       -- TODO: figure out how to encode these into the type system to make them impossible
       suite "select result should be a Left contructor if the query is invalid" do
@@ -56,7 +61,7 @@ runTest = suite "Test.Puregres.Select" do
 
         test "query not using maybe column combinator when it should" do
 
-          let query = email <** {email:_} `From` (TABLE users)
+          let query = email <** {email:_} `From` (TABLE orders `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
           Assert.assert "Either should be a Left constructor" (isLeft query)
 
 simpleSelect :: Either String ( SELECT ( Column { email :: String } ) )
@@ -110,9 +115,10 @@ whereSelect = select (
     `From` (TABLE users
       `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
     )
-  ) `where_`
+  )
+  # where_
     [ email `is` "testemail@gmail.com"
-    , registered `is` true -- booleans has to be wrapped as not included as Sql values
+    , registered `is` true
     ]
 
 expectedShowWhereSelect :: String
@@ -122,6 +128,27 @@ FROM public.users
   INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
 WHERE public.users.email = $1
 AND public.users.registered = $2"""
+
+orderBySelect :: Either String ( SELECT ( Column { user_id :: Int, order_id :: Int } ) )
+orderBySelect = select (
+    user_id &* order_id <** {order_id:_, user_id:_}
+    `From` (TABLE users
+      `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
+    )
+  )
+  # orderBy
+    [ asc email
+    , desc registered
+    ]
+
+expectedShowOrderBySelect :: String
+expectedShowOrderBySelect =
+  """SELECT public.orders.order_id, public.users.user_id
+FROM public.users
+  INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
+ORDER BY
+  public.users.email ASC,
+  public.users.registered DESC"""
 
 orders :: Table
 orders = Table "public.orders"

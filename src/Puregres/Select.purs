@@ -25,9 +25,10 @@ select :: forall a. Either String (From a) -> Either String (SELECT a)
 select eFrom = map (\from -> SELECT from [] []) eFrom
 
 instance showSELECT :: Show a => Show (SELECT a) where
-  show (SELECT from wheres order) =
+  show (SELECT from wheres orders) =
     "SELECT " <> show from
     <> showWheres wheres
+    <> showOrders orders
 
 data FromExpr
   = LEFT_JOIN FromExpr On
@@ -56,8 +57,8 @@ data WhereExpr
   = ColEq String SqlValue
   | ColNull String
 
-where_ :: forall a. Either String (SELECT a) -> Array WhereExpr -> Either String (SELECT a)
-where_ eSel wheres = map (\(SELECT from existingWheres orders) ->
+where_ :: forall a. Array WhereExpr -> Either String (SELECT a) -> Either String (SELECT a)
+where_ wheres eSel = map (\(SELECT from existingWheres orders) ->
   SELECT from (existingWheres <> wheres) orders) eSel
 
 is :: forall a. (IsSqlValue a) => Column a -> a -> WhereExpr
@@ -73,15 +74,33 @@ showWheres wheres = if null wheres
   where
     showWhere index where_ = case where_ of
       (ColEq str _) -> str <> " = " <> "$" <> show (index + 1)
-      (ColNull str ) -> str <> " = " <> "NULL"
+      (ColNull str ) -> str <> " = NULL"
 
 data Order = Order String Direction
+
+instance showOrder :: Show Order where
+  show (Order str dir) = str <> " " <> (show dir)
 
 data Direction = ASC | DESC
 
 instance showDirection :: Show Direction where
   show ASC = "ASC"
   show DESC = "DESC"
+
+asc :: forall a. Column a -> Order
+asc c = Order (show c) ASC
+
+desc :: forall a. Column a -> Order
+desc c = Order (show c) DESC
+
+orderBy :: forall a. Array Order -> Either String (SELECT a) -> Either String (SELECT a)
+orderBy orders eSel = map (\(SELECT from wheres existingOrders) ->
+  SELECT from wheres (orders <> existingOrders)) eSel
+
+showOrders :: Array Order -> String
+showOrders orders = if null orders
+  then ""
+  else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
 
 reasonColNotValidInFrom :: forall a. Boolean -> Column a -> FromExpr -> Maybe String -- string is reason for not being valid
 reasonColNotValidInFrom isMaybeColumn col sel = case (go false col sel) of
