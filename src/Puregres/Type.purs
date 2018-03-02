@@ -18,7 +18,6 @@ newtype Column a = Column
 
 newtype NullableColumn a = NullableColumn (Column a)
 
-
 appendStr :: forall a b. Column a -> Column b -> Column a
 appendStr (Column a) col =
   (Column (a {serialized = a.serialized <> ", " <> (show col)}))

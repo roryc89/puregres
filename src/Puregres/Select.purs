@@ -2,7 +2,7 @@ module Puregres.Select where
 
 import Prelude
 
-import Data.Array (mapWithIndex)
+import Data.Array (length, mapWithIndex, uncons)
 import Data.Either (Either(..))
 import Data.Foldable (null)
 import Data.Foreign.Class (class Decode)
@@ -10,8 +10,8 @@ import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Traversable (sequence)
 import Database.Postgres (Client, DB, Query(..), query)
-import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
 import Database.Postgres.SqlValue (SqlValue)
+import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
 import Puregres.Type (Column(Column), Table, addMaybe, andCol)
 
 data SELECT a = SELECT (From a) (Array WhereExpr) (Array Order)
@@ -20,10 +20,20 @@ select :: forall a. Either String (From a) -> Either String (SELECT a)
 select eFrom = map (\from -> SELECT from [] []) eFrom
 
 instance showSELECT :: Show a => Show (SELECT a) where
-  show (SELECT from wheres orders) =
-    "SELECT " <> show from
-    <> showWheres wheres
-    <> showOrders orders
+  show = showSelectWParamCount 1
+
+showSelectWParamCount :: forall a. Show a => Int -> SELECT a -> String
+showSelectWParamCount paramCount (SELECT from wheres orders) =
+  "SELECT " <> show from
+  <> showWheres paramCount wheres
+  <> showOrders orders
+
+getParams :: forall a. SELECT a -> Array SqlValue
+getParams (SELECT _ wheres _) = wheres >>= \whereExpr ->
+  case whereExpr of
+    ColNull _ -> []
+    ColEq _ sqlValue -> [sqlValue]
+    ColEqSubQuery _ params -> params
 
 data FromExpr
   = LEFT_JOIN FromExpr On
@@ -51,6 +61,7 @@ eqC = EqC
 data WhereExpr
   = ColEq String SqlValue
   | ColNull String
+  | ColEqSubQuery (Int -> String) (Array SqlValue)
 
 where_ :: forall a. Array WhereExpr -> Either String (SELECT a) -> Either String (SELECT a)
 where_ wheres eSel = map (\(SELECT from existingWheres orders) ->
@@ -62,14 +73,32 @@ is c v = ColEq (show c) (toSql v)
 isNull :: forall a. Column a -> WhereExpr
 isNull c = ColNull (show c)
 
-showWheres :: Array WhereExpr -> String
-showWheres wheres = if null wheres
-  then ""
-  else "\nWHERE " <> joinWith "\nAND " (mapWithIndex showWhere wheres)
+isQuery :: forall a . Column a -> Column a -> FromExpr -> Array WhereExpr -> WhereExpr
+isQuery col1 col2 from wheres =
+  ColEqSubQuery
+    (\paramCount -> show col1 <> " = (" <> (showSelectWParamCount paramCount sel) <> ")")
+    (getParams sel)
   where
-    showWhere index where_ = case where_ of
-      (ColEq str _) -> str <> " = " <> "$" <> show (index + 1)
-      (ColNull str ) -> str <> " = NULL"
+    sel = SELECT (From col2 from) wheres []
+
+
+showWheres :: Int -> Array WhereExpr -> String
+showWheres paramCount wheres = if null wheres
+  then ""
+  else "\nWHERE " <> joinWith "\nAND " (go [] paramCount wheres)
+  where
+    go :: Array String -> Int -> Array WhereExpr -> Array String
+    go result paramCount wheres = case uncons wheres of
+      Nothing -> result
+      Just {head, tail} -> case head of
+        ColEq str _ ->
+          go (result <> [str <> " = " <> "$" <> show paramCount]) (paramCount + 1) tail
+        ColNull str  ->
+          go (result <> [str <> " = NULL"]) paramCount tail
+        ColEqSubQuery queryString params ->
+          go (result <> [queryString paramCount]) (paramCount + length params) tail
+
+        -- _ -> go result paramCount tail -- TODO: complete for sub queries
 
 data Order = Order String Direction
 
@@ -96,6 +125,14 @@ showOrders :: Array Order -> String
 showOrders orders = if null orders
   then ""
   else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
+
+data From a = From a FromExpr
+
+instance showFrom :: Show a => Show (From a) where
+  show (From c expr ) = show c <> "\nFROM" <> show expr
+
+fromF :: forall a. FromExpr -> a -> From a
+fromF = flip From
 
 reasonColNotValidInFrom :: forall a. Boolean -> Column a -> FromExpr -> Maybe String -- string is reason for not being valid
 reasonColNotValidInFrom isMaybeColumn col sel = case (go false col sel) of
@@ -148,14 +185,6 @@ maybeAnotherColIntoFrom :: forall a b. Decode a =>
   -> Either String (From (Column (Maybe a -> b)))
   -> Either String (From (Column b))
 maybeAnotherColIntoFrom col = anotherColIntoFrom_ true (addMaybe col)
-
-data From a = From a FromExpr
-
-instance showFrom :: Show a => Show (From a) where
-  show (From c expr ) = show c <> "\nFROM" <> show expr
-
-fromF :: forall a. FromExpr -> a -> From a
-fromF = flip From
 
 colIntoFromFlipped :: forall a b.
   From (a -> b)

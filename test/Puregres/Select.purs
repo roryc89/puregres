@@ -3,11 +3,13 @@ module Test.Puregres.Select where
 import Prelude
 
 import Control.Monad.Free (Free)
-import Data.Either (Either, either, isLeft, isRight)
-import Data.Foreign.NullOrUndefined (NullOrUndefined)
-import Data.Maybe (Maybe)
-import Puregres.Select (From(From), FromExpr(..), SELECT, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??), orderBy, asc, desc)
+import Data.Either (Either(..), either, isLeft, isRight)
+import Data.Foreign (tagOf, toForeign)
+import Data.Foreign.NullOrUndefined (NullOrUndefined(..))
+import Data.Maybe (Maybe(..))
+import Puregres.Select (From(From), FromExpr(..), SELECT, isQuery, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??), orderBy, asc, desc, isNull, getParams)
 import Puregres.Type (Column, Table(..), makeColumn)
+import Test.TestUtils (unsafeToStringJs)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
 
@@ -46,6 +48,11 @@ runTest = suite "Test.Puregres.Select" do
           Assert.assert "Either should be a Right constructor" (isRight orderBySelect)
           Assert.equal expectedShowOrderBySelect (either (const "") show orderBySelect)
 
+        test "whereSubQuerySelect" do
+
+          Assert.assert "Either should be a Right constructor" (isRight whereSubQuerySelect)
+          Assert.equal expectedShowWhereSubQuerySelect (either (const "") show whereSubQuerySelect)
+
       -- TODO: figure out how to encode these into the type system to make them impossible
       suite "select result should be a Left contructor if the query is invalid" do
 
@@ -63,6 +70,22 @@ runTest = suite "Test.Puregres.Select" do
 
           let query = email <** {email:_} `From` (TABLE orders `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
           Assert.assert "Either should be a Left constructor" (isLeft query)
+
+    suite "getParams function should give the params of a SELECT" do
+
+      test "simpleSelect" do
+       Assert.equal (Right []) (getParamStrings simpleSelect)
+       Assert.equal (Right []) (getParamTypes simpleSelect)
+
+      test "whereSelect" do
+       Assert.equal (Right ["testemail@gmail.com", "true"]) (getParamStrings whereSelect)
+       Assert.equal (Right ["String", "Boolean"]) (getParamTypes whereSelect)
+
+getParamStrings :: forall a b. Functor a => a (SELECT b) -> a (Array String)
+getParamStrings = map (getParams >>> (map unsafeToStringJs))
+
+getParamTypes :: forall a b. Functor a => a (SELECT b) -> a (Array String)
+getParamTypes = map (getParams >>> (map (toForeign >>> tagOf)))
 
 simpleSelect :: Either String ( SELECT ( Column { email :: String } ) )
 simpleSelect =
@@ -117,7 +140,8 @@ whereSelect = select (
     )
   )
   # where_
-    [ email `is` "testemail@gmail.com"
+    [ isNull order_notes
+    , email `is` "testemail@gmail.com"
     , registered `is` true
     ]
 
@@ -126,7 +150,8 @@ expectedShowWhereSelect =
   """SELECT public.orders.order_id, public.users.user_id
 FROM public.users
   INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
-WHERE public.users.email = $1
+WHERE public.orders.order_notes = NULL
+AND public.users.email = $1
 AND public.users.registered = $2"""
 
 orderBySelect :: Either String ( SELECT ( Column { user_id :: Int, order_id :: Int } ) )
@@ -149,6 +174,26 @@ FROM public.users
 ORDER BY
   public.users.email ASC,
   public.users.registered DESC"""
+
+
+whereSubQuerySelect :: Either String ( SELECT ( Column { email :: String } ) )
+whereSubQuerySelect = select (
+    email <** { email:_}
+    `From` (TABLE users)
+  )
+  # where_
+    [ isQuery user_id order_user_id
+        (TABLE orders)
+        [item_id `is` 10]
+    ]
+
+expectedShowWhereSubQuerySelect :: String
+expectedShowWhereSubQuerySelect =
+  """SELECT public.users.email
+FROM public.users
+WHERE public.users.user_id = (SELECT public.orders.user_id
+FROM public.orders
+WHERE public.orders.item_id = $1)"""
 
 orders :: Table
 orders = Table "public.orders"
