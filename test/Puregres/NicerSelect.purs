@@ -23,7 +23,7 @@ runTest = suite "Test.Puregres.Select" do
           Assert.assert "Either should be a Right constructor" (isRight simpleSelect)
           Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
 
-        test "multiColumSelect (with flipped functions)" do
+        test "multiColumSelect" do
 
           Assert.assert "multiColumSelect Either  should be a Right constructor" (isRight multiColumSelect)
           Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
@@ -52,34 +52,38 @@ runTest = suite "Test.Puregres.Select" do
 
           Assert.assert "Either should be a Right constructor" (isRight whereSubQuerySelect)
           Assert.equal expectedShowWhereSubQuerySelect (either (const "") show whereSubQuerySelect)
+
+      -- TODO: figure out how to encode these into the type system to make them impossible
+      suite "select result should be a Left contructor if the query is invalid" do
+
+        test "query with column not in table" do
+
+          let query = Select {order_id:_} # col order_id # from_ users
+          Assert.assert "Either should be a Left constructor" (isLeft query)
+
+        test "query using maybe column combinator when it should not" do
+
+          let query = Select {email:_} # colM email # from_ users
+          Assert.assert "Either should be a Left constructor" (isLeft query)
     --
-    --   -- TODO: figure out how to encode these into the type system to make them impossible
-    --   suite "select result should be a Left contructor if the query is invalid" do
-    --
-    --     test "query with column not in table" do
-    --
-    --       let query = order_id <** {order_id:_} `From` (TABLE users)
-    --       Assert.assert "Either should be a Left constructor" (isLeft query)
-    --
-    --     test "query using maybe column combinator when it should not" do
-    --
-    --       let query = email <?? {email:_} `From` (TABLE users)
-    --       Assert.assert "Either should be a Left constructor" (isLeft query)
-    --
-    --     test "query not using maybe column combinator when it should" do
-    --
-    --       let query = email <** {email:_} `From` (TABLE orders `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
-    --       Assert.assert "Either should be a Left constructor" (isLeft query)
-    --
-    -- suite "getParams function should give the params of a SELECT" do
-    --
-    --   test "simpleSelect" do
-    --    Assert.equal (Right []) (getParamStrings simpleSelect)
-    --    Assert.equal (Right []) (getParamTypes simpleSelect)
-    --
-    --   test "whereSelect" do
-    --    Assert.equal (Right ["testemail@gmail.com", "true"]) (getParamStrings whereSelect)
-    --    Assert.equal (Right ["String", "Boolean"]) (getParamTypes whereSelect)
+        test "query not using maybe column combinator when it should" do
+
+          let query = Select {email:_} # col email # from orders (_ `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
+          Assert.assert "Either should be a Left constructor" (isLeft query)
+    -- --
+    suite "getParams function should give the params of a SELECT" do
+
+      test "simpleSelect" do
+        Assert.equal (Right []) (getParamStrings simpleSelect)
+        Assert.equal (Right []) (getParamTypes simpleSelect)
+
+      test "whereSelect" do
+        Assert.equal (Right ["testemail@gmail.com", "true"]) (getParamStrings whereSelect)
+        Assert.equal (Right ["String", "Boolean"]) (getParamTypes whereSelect)
+
+      test "whereSubQuerySelect" do
+        Assert.equal (Right ["10"]) (getParamStrings whereSubQuerySelect)
+        Assert.equal (Right ["Number"]) (getParamTypes whereSubQuerySelect)
 
 getParamStrings :: forall a b. Functor a => a (SELECT b) -> a (Array String)
 getParamStrings = map (getParams >>> (map unsafeToStringJs))
@@ -89,7 +93,7 @@ getParamTypes = map (getParams >>> (map (toForeign >>> tagOf)))
 
 simpleSelect :: Either String ( SELECT { email :: String } )
 simpleSelect =
-  SelectInto {email:_}
+  Select {email:_}
     # col email
     # from_ users
 
@@ -98,7 +102,7 @@ expectedShowSimpleSelect = "SELECT\n    public.users.email\nFROM public.users"
 
 multiColumSelect :: Either String ( SELECT { user_id :: Int, name :: Maybe String } )
 multiColumSelect =
-  SelectInto { user_id:_, name:_}
+  Select { user_id:_, name:_}
     # col user_id &* name
     # from_ users
 
@@ -114,7 +118,7 @@ infixr 2 apply as |>
 
 innerJoinSelect :: Either String ( SELECT { order_id :: Int, email :: String } )
 innerJoinSelect =
-  SelectInto {email:_, order_id:_}
+  Select {email:_, order_id:_}
     # col email &* order_id
     # from users
       (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
@@ -129,7 +133,7 @@ FROM public.users
 -- --
 leftJoinSelect :: Either String ( SELECT { order_id :: Maybe Int, email :: String } )
 leftJoinSelect =
-  SelectInto {email:_, order_id:_}
+  Select {email:_, order_id:_}
     # col email &? order_id
     # from users
       (_ `LEFT_JOIN` (orders `on` (user_id === order_user_id)))
@@ -144,7 +148,7 @@ FROM public.users
 
 whereSelect :: Either String ( SELECT { user_id :: Int, order_id :: Int } )
 whereSelect =
-  SelectInto {user_id:_, order_id:_}
+  Select {user_id:_, order_id:_}
     # col user_id &* order_id
     # from users
       (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
@@ -167,7 +171,7 @@ AND public.users.registered = $2"""
 
 orderBySelect :: Either String ( SELECT { user_id :: Int, order_id :: Int } )
 orderBySelect =
-  SelectInto {order_id:_, user_id:_}
+  Select {order_id:_, user_id:_}
     # col order_id &* user_id
     # from users
       (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
@@ -189,7 +193,7 @@ ORDER BY
 
 whereSubQuerySelect :: Either String ( SELECT { email :: String } )
 whereSubQuerySelect =
-  SelectInto {email:_}
+  Select {email:_}
     # col email
     # from_ users
     # where_

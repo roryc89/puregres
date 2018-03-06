@@ -48,7 +48,7 @@ instance columnShow :: Show (Column a) where
 addMaybe :: forall a. IsSqlValue a => Column a -> Column (Maybe a)
 addMaybe (Column c) = Column c{d = \f -> f ! c.name >>= readNull >>= traverse decode_}
 
-newtype SelectInto a = SelectInto a
+newtype Select a = Select a
 
 data FROM
   = LEFT_JOIN FROM On
@@ -96,13 +96,13 @@ type Tables = Array Table
 class SelectExpr old expr new where
   combine :: old -> expr -> new
 
-col :: forall a b. Column a -> SelectInto (a -> b) ->  ColGroup b
-col c@(Column column) (SelectInto f) =
+col :: forall a b. Column a -> Select (a -> b) ->  ColGroup b
+col c@(Column column) (Select f) =
   ColGroup [{name: column.name, table:column.table}] [column.table] [] (map f c)
 
-colM :: forall a b. IsSqlValue b => Column a -> SelectInto (a -> b) ->  ColGroup (Maybe b)
-colM c@(Column column) (SelectInto f) =
-  ColGroup [{name: column.name, table:column.table}] [] [column.table] (addMaybe (map f c))
+colM :: forall a b. IsSqlValue a => Column a -> Select (Maybe a -> b) -> ColGroup b
+colM c@(Column column) (Select f) =
+  ColGroup [{name: column.name, table:column.table}] [] [column.table] (map f (addMaybe c))
 
 colIntoColGroup :: forall a b. ColGroup (a -> b) -> Column a -> ColGroup b
 colIntoColGroup (ColGroup columnsWoDecoders tables nullableTables column) c@(Column newColumn) =
