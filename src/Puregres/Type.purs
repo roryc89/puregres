@@ -28,12 +28,6 @@ instance columnFunctor :: Functor Column where
 functorColumnDecoder :: forall a b. (a -> b) -> (Foreign -> F a) -> (Foreign -> F b)
 functorColumnDecoder f dec = map (map f) dec
 
-addNull :: forall a. Decode a => Column a -> Column (NullOrUndefined a)
-addNull (Column c) = Column c{d = \f -> f ! c.serialized >>= decode}
-
-addMaybe :: forall a. Decode a => Column a -> Column (Maybe a)
-addMaybe (Column c) = Column c{d = \f -> f ! c.serialized >>= readNull >>= traverse decode}
-
 instance columnApply :: Apply Column where
   apply (Column col1) (Column col2) =
     Column $ col1 {d = applyColumnDecoder col1.d col2.d}
@@ -46,6 +40,12 @@ instance columnShow :: Show (Column a) where
 
 andCol :: forall a b. Column (a -> b) -> Column a -> Column b
 andCol c0 c1 = appendStr (c0 <*> c1) c1
+
+addNull :: forall a. Decode a => Column a -> Column (NullOrUndefined a)
+addNull (Column c) = Column c{d = \f -> f ! c.serialized >>= decode}
+
+addMaybe :: forall a. Decode a => Column a -> Column (Maybe a)
+addMaybe (Column c) = Column c{d = \f -> f ! c.serialized >>= readNull >>= traverse decode}
 
 infixr 3 andCol as &*
 

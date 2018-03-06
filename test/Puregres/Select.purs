@@ -187,6 +187,7 @@ whereSubQuerySelect = select (
         [item_id `is` 10]
     ]
 
+
 expectedShowWhereSubQuerySelect :: String
 expectedShowWhereSubQuerySelect =
   """SELECT public.users.email

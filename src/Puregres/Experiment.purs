@@ -1,0 +1,49 @@
+module Puregres.Experiment where
+
+-- import Data.Foreign (Foreign, F)
+-- import Data.Foreign.Class (decode)
+--
+-- data Submissions = Submissions
+--
+-- data Column t d = Column String
+--
+-- data Submission_id_type = Submission_id_type
+--
+-- submission_id :: Column Submission_id_type Int
+-- submission_id = Column "submission_id"
+--
+-- data Submission_user_id_type = Submission_user_id_type
+--
+-- submission_user_id :: Column Submission_user_id_type Int
+-- submission_user_id = Column "user_id"
+--
+-- data Users = Users
+--
+-- user_id :: Column Users Int
+-- user_id = Column "user_id"
+--
+-- email :: Column Users Int
+-- email = Column "email"
+--
+-- data INNER_JOIN t1 t2 = INNER_JOIN t1 t2
+--
+-- class GetColumnIn table column res where
+--    getColumn :: table -> column -> Foreign -> F res
+--
+-- instance getSubmissionIdColumn :: GetColumnIn Submissions Submission_user_id_type Int where
+--   getColumn t c = decode
+
+-- instance showSELECT :: Show a => Show (SELECT a) where
+--   show = showSelectWParamCount 1
+
+-- getSubmissionsWhereEventId stageId =
+--   select
+--     .. {user_id:_, order_id:_}
+--     .. user_id && order_id
+--     .. from users
+--     .. where_
+--       [ archived === true
+--       , stage_id === $ select
+--           .. stage_id
+--           .. from
+--       ]f
