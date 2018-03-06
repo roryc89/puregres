@@ -7,8 +7,8 @@ import Data.Either (Either(..), either, isLeft, isRight)
 import Data.Foreign (tagOf, toForeign)
 import Data.Foreign.NullOrUndefined (NullOrUndefined(..))
 import Data.Maybe (Maybe(..))
-import Puregres.Select (From(From), FromExpr(..), SELECT, isQuery, eqC, fromF, is, on, select, where_, (&*), (&?), (*&), (**>), (<**), (<??), orderBy, asc, desc, isNull, getParams)
-import Puregres.Type (Column, Table(..), makeColumn)
+import Puregres.Select
+import Puregres.Type (Table(..))
 import Test.TestUtils (unsafeToStringJs)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
@@ -23,20 +23,20 @@ runTest = suite "Test.Puregres.Select" do
           Assert.assert "Either should be a Right constructor" (isRight simpleSelect)
           Assert.equal expectedShowSimpleSelect (either (const "") show simpleSelect)
 
-        test "multiColumSelect (with flipped functions)" do
+        test "multiColumSelect" do
 
           Assert.assert "multiColumSelect Either  should be a Right constructor" (isRight multiColumSelect)
           Assert.equal expectedShowMultiColumnSelect (either (const "") show multiColumSelect)
-
-        test "leftJoinSelect" do
-
-          Assert.assert "Either should be a Right constructor" (isRight leftJoinSelect)
-          Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
 
         test "innerJoinSelect" do
 
           Assert.assert "Either should be a Right constructor" (isRight innerJoinSelect)
           Assert.equal expectedShowInnerJoinSelect (either (const "") show innerJoinSelect)
+
+        test "leftJoinSelect" do
+
+          Assert.assert "Either should be a Right constructor" (isRight leftJoinSelect)
+          Assert.equal expectedShowLeftJoinSelect (either (const "") show leftJoinSelect)
 
         test "whereSelect" do
 
@@ -58,28 +58,32 @@ runTest = suite "Test.Puregres.Select" do
 
         test "query with column not in table" do
 
-          let query = order_id <** {order_id:_} `From` (TABLE users)
+          let query = Select {order_id:_} # col order_id # from_ users
           Assert.assert "Either should be a Left constructor" (isLeft query)
 
         test "query using maybe column combinator when it should not" do
 
-          let query = email <?? {email:_} `From` (TABLE users)
+          let query = Select {email:_} # colM email # from_ users
           Assert.assert "Either should be a Left constructor" (isLeft query)
-
+    --
         test "query not using maybe column combinator when it should" do
 
-          let query = email <** {email:_} `From` (TABLE orders `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
+          let query = Select {email:_} # col email # from orders (_ `LEFT_JOIN` (users `on` (order_user_id `eqC` user_id)))
           Assert.assert "Either should be a Left constructor" (isLeft query)
-
+    -- --
     suite "getParams function should give the params of a SELECT" do
 
       test "simpleSelect" do
-       Assert.equal (Right []) (getParamStrings simpleSelect)
-       Assert.equal (Right []) (getParamTypes simpleSelect)
+        Assert.equal (Right []) (getParamStrings simpleSelect)
+        Assert.equal (Right []) (getParamTypes simpleSelect)
 
       test "whereSelect" do
-       Assert.equal (Right ["testemail@gmail.com", "true"]) (getParamStrings whereSelect)
-       Assert.equal (Right ["String", "Boolean"]) (getParamTypes whereSelect)
+        Assert.equal (Right ["testemail@gmail.com", "true"]) (getParamStrings whereSelect)
+        Assert.equal (Right ["String", "Boolean"]) (getParamTypes whereSelect)
+
+      test "whereSubQuerySelect" do
+        Assert.equal (Right ["10"]) (getParamStrings whereSubQuerySelect)
+        Assert.equal (Right ["Number"]) (getParamTypes whereSubQuerySelect)
 
 getParamStrings :: forall a b. Functor a => a (SELECT b) -> a (Array String)
 getParamStrings = map (getParams >>> (map unsafeToStringJs))
@@ -87,112 +91,127 @@ getParamStrings = map (getParams >>> (map unsafeToStringJs))
 getParamTypes :: forall a b. Functor a => a (SELECT b) -> a (Array String)
 getParamTypes = map (getParams >>> (map (toForeign >>> tagOf)))
 
-simpleSelect :: Either String ( SELECT ( Column { email :: String } ) )
+simpleSelect :: Either String ( SELECT { email :: String } )
 simpleSelect =
-  select $
-    email <** {email:_}
-    `From` (TABLE users)
+  Select {email:_}
+    # col email
+    # from_ users
 
 expectedShowSimpleSelect :: String
-expectedShowSimpleSelect = "SELECT public.users.email\nFROM public.users"
+expectedShowSimpleSelect = "SELECT\n    public.users.email\nFROM public.users"
 
-multiColumSelect :: Either String ( SELECT ( Column { user_id :: Int, name :: NullOrUndefined String } ) )
+multiColumSelect :: Either String ( SELECT { user_id :: Int, name :: Maybe String } )
 multiColumSelect =
-  select $
-    (TABLE users) `fromF` -- Flipping reads less like sql but allows columns to line up
-    { user_id:_, name:_} **>
-      user_id *& name
+  Select { user_id:_, name:_}
+    # col user_id &* name
+    # from_ users
 
 expectedShowMultiColumnSelect :: String
 expectedShowMultiColumnSelect =
-  """SELECT public.users.user_id, public.users.name
+  """SELECT
+    public.users.user_id,
+    public.users.name
 FROM public.users"""
 
-innerJoinSelect :: Either String ( SELECT ( Column { order_id :: Int, email :: String } ) )
-innerJoinSelect = select $
-  order_id &* email <** {email:_, order_id:_}
-  `From` (TABLE users
-    `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
-  )
+infixr 2 apply as |>
+
+
+innerJoinSelect :: Either String ( SELECT { order_id :: Int, email :: String } )
+innerJoinSelect =
+  Select {email:_, order_id:_}
+    # col email &* order_id
+    # from users
+      (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
+
 expectedShowInnerJoinSelect :: String
 expectedShowInnerJoinSelect =
-  """SELECT public.users.email, public.orders.order_id
+  """SELECT
+    public.users.email,
+    public.orders.order_id
 FROM public.users
   INNER JOIN public.orders ON public.users.user_id = public.orders.user_id"""
+-- --
+leftJoinSelect :: Either String ( SELECT { order_id :: Maybe Int, email :: String } )
+leftJoinSelect =
+  Select {email:_, order_id:_}
+    # col email &? order_id
+    # from users
+      (_ `LEFT_JOIN` (orders `on` (user_id === order_user_id)))
 
-leftJoinSelect :: Either String ( SELECT ( Column { order_id :: Maybe Int, email :: String } ) )
-leftJoinSelect = select $
-  order_id &? email <** {email:_, order_id:_}
-  `From` (TABLE users
-    `LEFT_JOIN` (orders `on` (user_id `eqC` order_user_id))
-  )
 expectedShowLeftJoinSelect :: String
 expectedShowLeftJoinSelect =
-  """SELECT public.users.email, public.orders.order_id
+  """SELECT
+    public.users.email,
+    public.orders.order_id
 FROM public.users
   LEFT JOIN public.orders ON public.users.user_id = public.orders.user_id"""
 
-whereSelect :: Either String ( SELECT ( Column { user_id :: Int, order_id :: Int } ) )
-whereSelect = select (
-    user_id &* order_id <** {order_id:_, user_id:_}
-    `From` (TABLE users
-      `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
-    )
-  )
-  # where_
-    [ isNull order_notes
-    , email `is` "testemail@gmail.com"
-    , registered `is` true
-    ]
+whereSelect :: Either String ( SELECT { user_id :: Int, order_id :: Int } )
+whereSelect =
+  Select {user_id:_, order_id:_}
+    # col user_id &* order_id
+    # from users
+      (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
+    # where_
+      [ order_notes === unit --- unit for null values
+      , email === "testemail@gmail.com"
+      , registered === true
+      ]
 
 expectedShowWhereSelect :: String
 expectedShowWhereSelect =
-  """SELECT public.orders.order_id, public.users.user_id
+  """SELECT
+    public.users.user_id,
+    public.orders.order_id
 FROM public.users
   INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
 WHERE public.orders.order_notes = NULL
 AND public.users.email = $1
 AND public.users.registered = $2"""
 
-orderBySelect :: Either String ( SELECT ( Column { user_id :: Int, order_id :: Int } ) )
-orderBySelect = select (
-    user_id &* order_id <** {order_id:_, user_id:_}
-    `From` (TABLE users
-      `INNER_JOIN` (orders `on` (user_id `eqC` order_user_id))
-    )
-  )
-  # orderBy
-    [ asc email
-    , desc registered
-    ]
+orderBySelect :: Either String ( SELECT { user_id :: Int, order_id :: Int } )
+orderBySelect =
+  Select {order_id:_, user_id:_}
+    # col order_id &* user_id
+    # from users
+      (_ `INNER_JOIN` (orders `on` (user_id === order_user_id)))
+    # orderBy
+      [ asc email
+      , desc registered
+      ]
 
 expectedShowOrderBySelect :: String
 expectedShowOrderBySelect =
-  """SELECT public.orders.order_id, public.users.user_id
+  """SELECT
+    public.orders.order_id,
+    public.users.user_id
 FROM public.users
   INNER JOIN public.orders ON public.users.user_id = public.orders.user_id
 ORDER BY
   public.users.email ASC,
   public.users.registered DESC"""
 
-
-whereSubQuerySelect :: Either String ( SELECT ( Column { email :: String } ) )
-whereSubQuerySelect = select (
-    email <** { email:_}
-    `From` (TABLE users)
-  )
-  # where_
-    [ isQuery user_id order_user_id
-        (TABLE orders)
-        [item_id `is` 10]
-    ]
-
+whereSubQuerySelect :: Either String ( SELECT { email :: String } )
+whereSubQuerySelect =
+  Select {email:_}
+    # col email
+    # from_ users
+    # where_
+      [ user_id ===
+          selectW order_user_id
+          # fromW_ orders
+          # whereW
+            [ item_id === 10 ]
+      ]
 
 expectedShowWhereSubQuerySelect :: String
 expectedShowWhereSubQuerySelect =
-  """SELECT public.users.email
+  """SELECT
+    public.users.email
 FROM public.users
-WHERE public.users.user_id = (SELECT public.orders.user_id
+WHERE public.users.user_id = (
+SELECT
+    public.orders.user_id
 FROM public.orders
 WHERE public.orders.item_id = $1)"""
 
@@ -205,7 +224,7 @@ order_id = makeColumn orders "order_id"
 item_id :: Column Int
 item_id = makeColumn orders "item_id"
 
-order_notes :: Column (NullOrUndefined String)
+order_notes :: Column (Maybe String)
 order_notes = makeColumn orders "order_notes"
 
 order_user_id :: Column Int
@@ -217,7 +236,7 @@ users = Table "public.users"
 user_id :: Column Int
 user_id = makeColumn users "user_id"
 
-name :: Column (NullOrUndefined String)
+name :: Column (Maybe String)
 name = makeColumn users "name"
 
 email :: Column String

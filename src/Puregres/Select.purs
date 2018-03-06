@@ -2,88 +2,247 @@ module Puregres.Select where
 
 import Prelude
 
-import Data.Array (length, mapWithIndex, uncons)
+import Control.Apply (lift2)
+import Data.Array (all, catMaybes, length, null, uncons)
 import Data.Either (Either(..))
-import Data.Foldable (null)
-import Data.Foreign.Class (class Decode)
+import Data.Foreign (F, Foreign, ForeignError(..), fail, readNull)
+import Data.Foreign.Class (class Decode, decode)
+import Data.Foreign.Index ((!))
+import Data.List.Lazy.NonEmpty (fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
-import Data.Traversable (sequence)
-import Database.Postgres (Client, DB, Query(..), query)
+import Data.Traversable (traverse)
 import Database.Postgres.SqlValue (SqlValue)
-import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
-import Puregres.Type (Column(Column), Table, addMaybe, andCol)
+import Puregres.PuregresSqlValue (class IsSqlValue, decode_, toSql)
+import Puregres.Type (Table(..))
 
-data SELECT a = SELECT (From a) (Array WhereExpr) (Array Order)
+newtype Column a = Column
+  { name :: String
+  , table :: Table
+  , d :: Foreign -> F a
+  }
 
-select :: forall a. Either String (From a) -> Either String (SELECT a)
-select eFrom = map (\from -> SELECT from [] []) eFrom
+makeColumn :: forall a. IsSqlValue a => Table -> String -> Column a
+makeColumn table name = Column
+  { name
+  , table: table
+  , d: \f -> f ! name >>= decode_
+  }
 
-instance showSELECT :: Show a => Show (SELECT a) where
-  show = showSelectWParamCount 1
+instance columnFunctor :: Functor Column where
+  map f (Column c) = Column c {d = functorColumnDecoder f c.d}
 
-showSelectWParamCount :: forall a. Show a => Int -> SELECT a -> String
-showSelectWParamCount paramCount (SELECT from wheres orders) =
-  "SELECT " <> show from
-  <> showWheres paramCount wheres
-  <> showOrders orders
+functorColumnDecoder :: forall a b. (a -> b) -> (Foreign -> F a) -> (Foreign -> F b)
+functorColumnDecoder f dec = map (map f) dec
 
-getParams :: forall a. SELECT a -> Array SqlValue
-getParams (SELECT _ wheres _) = wheres >>= \whereExpr ->
-  case whereExpr of
-    ColNull _ -> []
-    ColEq _ sqlValue -> [sqlValue]
-    ColEqSubQuery _ params -> params
+instance columnApply :: Apply Column where
+  apply (Column col1) (Column col2) =
+    Column $ col1 {d = applyColumnDecoder col1.d col2.d}
 
-data FromExpr
-  = LEFT_JOIN FromExpr On
-  | INNER_JOIN FromExpr On
+applyColumnDecoder :: forall a b. (Foreign -> F (a -> b)) -> (Foreign -> F a) -> (Foreign -> F b)
+applyColumnDecoder = lift2 apply
+
+instance columnShow :: Show (Column a) where
+  show (Column c) = (show c.table) <> "." <> c.name
+
+addMaybe :: forall a. IsSqlValue a => Column a -> Column (Maybe a)
+addMaybe (Column c) = Column c{d = \f -> f ! c.name >>= readNull >>= traverse decode_}
+
+newtype Select a = Select a
+
+data FROM
+  = LEFT_JOIN FROM On
+  | INNER_JOIN FROM On
   | TABLE Table
 
-instance showFromExpr :: Show FromExpr where
+instance showFROM :: Show FROM where
   show (LEFT_JOIN sel on) = show sel <> "\n  LEFT JOIN" <> show on
   show (INNER_JOIN sel on) = show sel <> "\n  INNER JOIN" <> show on
   show (TABLE t) = " " <> (show t)
 
-data On = On String FromExpr
+data On = On String FROM
 
 instance onShow :: Show On where
   show (On str sel) = show sel <> " " <> str
 
-on :: forall a. Table -> EqC a -> On
-on s (EqC c1 c2) = On ("ON " <> show c1 <> " = " <> show c2) (TABLE s)
+on :: forall a. Table -> EqC -> On
+on s (EqC c1 c2) = On ("ON " <> showColumnWoDecoder c1 <> " = " <> showColumnWoDecoder c2) (TABLE s)
 
-data EqC a = EqC (Column a) (Column a)
+data EqC = EqC ColumnWoDecoder ColumnWoDecoder
 
-eqC :: forall a. Column a -> Column a -> EqC a
-eqC = EqC
+eqC :: forall a. Column a -> Column a -> EqC
+eqC (Column col1) (Column col2) = EqC {name: col1.name, table:col1.table} {name: col2.name, table:col2.table}
+
+instance eqColumnEqC :: EqColumn (Column a) (Column a) EqC where
+  eqColumn = eqC
+
+data ColGroup a = ColGroup ColumnsWoDecoders Tables NullableTables (Column a)
+
+instance showColGroup :: Show (ColGroup a) where
+  show (ColGroup columnsWoDecoders _ _ _) = joinWith "," $
+     map (\c -> "\n    " <> show c.table <> "." <> c.name) columnsWoDecoders
+
+type ColumnsWoDecoders = Array ColumnWoDecoder
+
+type ColumnWoDecoder =  {name :: String, table :: Table}
+
+showColumnWoDecoder :: ColumnWoDecoder -> String
+showColumnWoDecoder c = show c.table <> "." <> c.name
+
+type NullableTables = Array Table
+
+type Tables = Array Table
+
+class SelectExpr old expr new where
+  combine :: old -> expr -> new
+
+col :: forall a b. Column a -> Select (a -> b) ->  ColGroup b
+col c@(Column column) (Select f) =
+  ColGroup [{name: column.name, table:column.table}] [column.table] [] (map f c)
+
+colM :: forall a b. IsSqlValue a => Column a -> Select (Maybe a -> b) -> ColGroup b
+colM c@(Column column) (Select f) =
+  ColGroup [{name: column.name, table:column.table}] [] [column.table] (map f (addMaybe c))
+
+colIntoColGroup :: forall a b. ColGroup (a -> b) -> Column a -> ColGroup b
+colIntoColGroup (ColGroup columnsWoDecoders tables nullableTables column) c@(Column newColumn) =
+  ColGroup
+    (columnsWoDecoders <> [{name: newColumn.name, table: newColumn.table}])
+    (tables <> [newColumn.table])
+    nullableTables
+    (column <*> c)
+
+colIntoColGroupM :: forall a b. IsSqlValue a => ColGroup (Maybe a -> b) -> Column a -> ColGroup b
+colIntoColGroupM (ColGroup columnsWoDecoders tables nullableTables column) c@(Column newColumn) =
+  ColGroup
+    (columnsWoDecoders <> [{name: newColumn.name, table: newColumn.table}])
+    tables
+    (nullableTables <> [newColumn.table])
+    (column <*> (addMaybe c))
+
+fromInternal :: forall a. FROM -> ColGroup a -> Either String (SELECT a)
+fromInternal from_ colGroup@(ColGroup names tables nullableTables column) =
+  let
+    columnsNotFoundInTables =
+      (map (reasonTableNotValidInFrom false from_) tables)
+        <> (map (reasonTableNotValidInFrom true from_) nullableTables)
+      # catMaybes
+  in
+    case columnsNotFoundInTables of
+      [] -> Right (SELECT from_ (WHERE []) (ORDER_BY []) colGroup)
+      arr -> Left (show arr)
+
+from_ :: forall a. Table -> ColGroup a -> Either String (SELECT a)
+from_ t = fromInternal (TABLE t)
+
+from :: forall a. Table -> (FROM -> FROM) -> ColGroup a -> Either String (SELECT a)
+from table toFrom =
+  fromInternal (toFrom (TABLE table))
+
+reasonTableNotValidInFrom :: forall a. Boolean -> FROM -> Table -> Maybe String -- string is reason for not being valid
+reasonTableNotValidInFrom isMaybeTable from table = case (getIsTableInFrom table from) of
+    [isMaybe] -> if isMaybeTable == isMaybe
+      then Nothing
+      else Just $ if isMaybeTable
+        then "Searching for a maybe table but non maybe table found. Try adding ? or M to the column combinator. Table: " <> show table
+        else "Searching for a non maybe table but maybe table found. Try removing ? or M from the column combinator. Table: " <> show table
+
+    [] -> Just $ "Table not found in FROM: " <> show table
+    _ -> Just $ "Table found multiple times in FROM: " <> show table
+
+type IsMaybeTable = Boolean
+
+getIsTableInFrom_ :: Boolean -> Table -> FROM -> Array (IsMaybeTable)
+getIsTableInFrom_ isMaybe table from =
+  case from of
+    LEFT_JOIN froml (On _ fromr) -> (getIsTableInFrom_ isMaybe table froml) <> (getIsTableInFrom_ true table fromr)
+    INNER_JOIN froml (On _ fromr) -> (getIsTableInFrom_ isMaybe table froml) <> (getIsTableInFrom_ isMaybe table fromr)
+    TABLE table_ -> if table == table_ then [isMaybe] else []
+
+getIsTableInFrom :: Table -> FROM -> Array (IsMaybeTable)
+getIsTableInFrom = getIsTableInFrom_ false
+
+data SELECT a = SELECT FROM WHERE ORDER_BY (ColGroup a)
+
+instance showSELECT :: Show (SELECT a) where
+  show (SELECT from where_ orderBy colGroup) =
+    "SELECT"
+      <> show colGroup
+      <> "\nFROM"
+      <> show from
+      <> showWheres 1 where_
+      <> showOrders orderBy
+
+where_ :: forall a. Array WhereExpr -> Either String (SELECT a) -> Either String (SELECT a)
+where_ wheres =  map (whereW wheres)
+
+whereW :: forall a. Array WhereExpr -> SELECT a -> SELECT a
+whereW wheres (SELECT from (WHERE currentWheres) orders colGroup) =
+      (SELECT from (WHERE (currentWheres <> wheres)) orders colGroup)
+
+newtype WHERE = WHERE (Array WhereExpr)
 
 data WhereExpr
   = ColEq String SqlValue
   | ColNull String
   | ColEqSubQuery (Int -> String) (Array SqlValue)
 
-where_ :: forall a. Array WhereExpr -> Either String (SELECT a) -> Either String (SELECT a)
-where_ wheres eSel = map (\(SELECT from existingWheres orders) ->
-  SELECT from (existingWheres <> wheres) orders) eSel
+class EqColumn col value result where
+  eqColumn :: col -> value -> result
 
-is :: forall a. (IsSqlValue a) => Column a -> a -> WhereExpr
-is c v = ColEq (show c) (toSql v)
+instance eqColumnWhereSqlValue :: (IsSqlValue a) => EqColumn (Column a) a WhereExpr where
+  eqColumn col val = ColEq (show col) (toSql val)
 
-isNull :: forall a. Column a -> WhereExpr
-isNull c = ColNull (show c)
+instance eqColumnWhereNull ::  EqColumn (Column a) Unit WhereExpr where
+  eqColumn col unit = ColNull (show col)
 
-isQuery :: forall a . Column a -> Column a -> FromExpr -> Array WhereExpr -> WhereExpr
-isQuery col1 col2 from wheres =
+instance eqColumnWhereQuery :: EqColumn (Column a) (SELECT Unit) WhereExpr where
+  eqColumn col1 fromWCols@(SELECT from wheres orders (ColGroup _ _ _ col2)) =
+    ColEqSubQuery
+      (\paramCount -> show col1 <> " = (\n" <> (showSELECTWithParamCount paramCount fromWCols) <> ")")
+      (getParams fromWCols)
+
+whereQuery :: forall a. (Show a) => Column a -> (SELECT Unit) -> WhereExpr
+whereQuery col1 fromWCols@(SELECT from wheres orders (ColGroup _ _ _ col2)) =
   ColEqSubQuery
-    (\paramCount -> show col1 <> " = (" <> (showSelectWParamCount paramCount sel) <> ")")
-    (getParams sel)
-  where
-    sel = SELECT (From col2 from) wheres []
+    (\paramCount -> show col1 <> " = (" <> (showSELECTWithParamCount paramCount fromWCols) <> ")")
+    (getParams fromWCols)
 
+selectW :: forall a. Column a -> ColGroup Unit
+selectW c@(Column column) =
+    ColGroup
+      [{name: column.name, table:column.table}]
+      []
+      []
+      (Column
+         { name:column.name
+         , table:column.table
+         , d: const $ fail $ ForeignError "selectW should not use decoder"
+         }
+      )
 
-showWheres :: Int -> Array WhereExpr -> String
-showWheres paramCount wheres = if null wheres
+fromWInternal :: forall a. FROM -> ColGroup Unit -> SELECT Unit
+fromWInternal from_ colGroup =
+  SELECT from_ (WHERE []) (ORDER_BY []) colGroup
+
+fromW_ :: forall a. Table -> ColGroup Unit -> SELECT Unit
+fromW_ t = fromWInternal (TABLE t)
+
+fromW :: forall a. Table -> (FROM -> FROM) -> ColGroup Unit -> SELECT Unit
+fromW table toFrom =
+  fromWInternal (toFrom (TABLE table))
+
+showSELECTWithParamCount :: forall a. Show a => Int -> (SELECT a) -> String
+showSELECTWithParamCount paramCount (SELECT from wheres orders colGroup) =
+  "SELECT"
+    <> show colGroup
+    <> "\nFROM"
+    <> show from
+    <> showWheres paramCount wheres
+    <> showOrders orders
+
+showWheres :: Int -> WHERE -> String
+showWheres paramCount (WHERE wheres) = if null wheres
   then ""
   else "\nWHERE " <> joinWith "\nAND " (go [] paramCount wheres)
   where
@@ -98,7 +257,20 @@ showWheres paramCount wheres = if null wheres
         ColEqSubQuery queryString params ->
           go (result <> [queryString paramCount]) (paramCount + length params) tail
 
-        -- _ -> go result paramCount tail -- TODO: complete for sub queries
+getParams :: forall a. SELECT a -> Array SqlValue
+getParams (SELECT _ (WHERE wheres) _ _) = wheres >>= \whereExpr ->
+  case whereExpr of
+    ColNull _ -> []
+    ColEq _ sqlValue -> [sqlValue]
+    ColEqSubQuery _ params -> params
+
+orderBy :: forall a. Array Order -> Either String (SELECT a) -> Either String (SELECT a)
+orderBy orders eFromWC = map go eFromWC
+  where
+    go (SELECT from wheres (ORDER_BY currentOrders) colGroup) =
+      (SELECT from wheres (ORDER_BY (currentOrders <> orders)) colGroup)
+
+data ORDER_BY = ORDER_BY (Array Order)
 
 data Order = Order String Direction
 
@@ -117,104 +289,22 @@ asc c = Order (show c) ASC
 desc :: forall a. Column a -> Order
 desc c = Order (show c) DESC
 
-orderBy :: forall a. Array Order -> Either String (SELECT a) -> Either String (SELECT a)
-orderBy orders eSel = map (\(SELECT from wheres existingOrders) ->
-  SELECT from wheres (orders <> existingOrders)) eSel
-
-showOrders :: Array Order -> String
-showOrders orders = if null orders
+showOrders :: ORDER_BY -> String
+showOrders (ORDER_BY orders) = if null orders
   then ""
   else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
 
-data From a = From a FromExpr
+-- INFIXES
 
-instance showFrom :: Show a => Show (From a) where
-  show (From c expr ) = show c <> "\nFROM" <> show expr
+infixl 4 combine as ..
+infixl 1 colIntoColGroup as &*
+infixl 1 colIntoColGroupM as &?
+infixl 0 eqColumn as ===
 
-fromF :: forall a. FromExpr -> a -> From a
-fromF = flip From
+-- instance selectExprSelectAndColGroup :: SelectExpr (SelectAndColGroup (a -> b)) (ColGroup)
+-- nullable ::
 
-reasonColNotValidInFrom :: forall a. Boolean -> Column a -> FromExpr -> Maybe String -- string is reason for not being valid
-reasonColNotValidInFrom isMaybeColumn col sel = case (go false col sel) of
-    [isMaybe] -> if isMaybeColumn == isMaybe
-      then Nothing
-      else Just $ if isMaybeColumn
-        then "Searching for a maybe column but non maybe column found. Try adding ? to the column combinator. Column: " <> show col
-        else "Searching for a non maybe column but maybe column found. Try removing ? from the column combinator. Column: " <> show col
+-- on :: forall a. Table -> EqC a -> On
+-- on s (EqC c1 c2) = On ("ON " <> show c1 <> " = " <> show c2) (TABLE s)
 
-    [] -> Just $ "No tables with column found: " <> show col
-    _ -> Just $ "Multiple tables with column found: " <> show col
-  where
-    go :: Boolean -> Column a -> FromExpr -> Array (Boolean)
-    go isMaybe col@(Column c) sel =
-      case sel of
-        LEFT_JOIN sell (On _ selr) -> (go isMaybe col sell) <> (go true col selr)
-        INNER_JOIN sell (On _ selr) -> (go isMaybe col sell) <> (go isMaybe col selr)
-        TABLE table -> if (table == c.table) then [isMaybe] else []
-
-colIntoFrom_ :: forall a b. Boolean -> Column a -> From (a -> b) -> Either String (From (Column b))
-colIntoFrom_ isMaybe colv (From f sel) =
-  case reasonColNotValidInFrom isMaybe colv sel of
-    Nothing -> Right $ From (f <$> colv) sel
-    Just reason -> Left reason
-
-colIntoFrom :: forall a b. Column a -> From (a -> b) -> Either String (From (Column b))
-colIntoFrom = colIntoFrom_ false
-
-maybeColIntoFrom :: forall b a. Decode a => Column a -> From (Maybe a -> b) -> Either String (From (Column b))
-maybeColIntoFrom col = colIntoFrom_ true (addMaybe col)
-
-anotherColIntoFrom_ :: forall a b.
-  Boolean
-  -> Column a
-  -> Either String (From (Column (a -> b)))
-  -> Either String (From (Column b))
-anotherColIntoFrom_ isMaybe colv eFrom = bind eFrom \(From f sel) ->
-  case reasonColNotValidInFrom isMaybe colv sel of
-    Nothing -> Right $ From (andCol f colv) sel
-    Just reason -> Left reason
-
-anotherColIntoFrom :: forall a b.
-  Column a
-  -> Either String (From (Column (a -> b)))
-  -> Either String (From (Column b))
-anotherColIntoFrom = anotherColIntoFrom_ false
-
-maybeAnotherColIntoFrom :: forall a b. Decode a =>
-  Column a
-  -> Either String (From (Column (Maybe a -> b)))
-  -> Either String (From (Column b))
-maybeAnotherColIntoFrom col = anotherColIntoFrom_ true (addMaybe col)
-
-colIntoFromFlipped :: forall a b.
-  From (a -> b)
-  -> Column a
-  -> Either String (From (Column b))
-colIntoFromFlipped = flip colIntoFrom
-
-maybeColIntoFromFlipped :: forall a b. Decode a =>
-  From (Maybe a -> b)
-  -> Column a
-  -> Either String (From (Column b))
-maybeColIntoFromFlipped = flip maybeColIntoFrom
-
-anotherColIntoFromFlipped :: forall a b.
-  Either String (From (Column (a -> b)))
-  -> Column a
-  -> Either String (From (Column b))
-anotherColIntoFromFlipped = flip anotherColIntoFrom
-
-maybeAnotherColIntoFromFlipped :: forall a b. Decode a =>
-  Either String (From (Column (Maybe a -> b)))
-  -> Column a
-  -> Either String (From (Column b))
-maybeAnotherColIntoFromFlipped = flip maybeAnotherColIntoFrom
-
-infixl 4 colIntoFrom as <**
-infixr 4 colIntoFromFlipped as **>
-infixl 4 maybeColIntoFrom as <??
-infixl 4 maybeColIntoFromFlipped as ??>
-infixl 3 anotherColIntoFrom as &*
-infixl 3 anotherColIntoFromFlipped as *&
-infixl 3 maybeAnotherColIntoFrom as &?
-infixl 3 maybeAnotherColIntoFromFlipped as ?&
+-- data SelectWithFn
