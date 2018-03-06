@@ -48,10 +48,10 @@ runTest = suite "Test.Puregres.Select" do
           Assert.assert "Either should be a Right constructor" (isRight orderBySelect)
           Assert.equal expectedShowOrderBySelect (either (const "") show orderBySelect)
 
-    --     test "whereSubQuerySelect" do
-    --
-    --       Assert.assert "Either should be a Right constructor" (isRight whereSubQuerySelect)
-    --       Assert.equal expectedShowWhereSubQuerySelect (either (const "") show whereSubQuerySelect)
+        test "whereSubQuerySelect" do
+
+          Assert.assert "Either should be a Right constructor" (isRight whereSubQuerySelect)
+          Assert.equal expectedShowWhereSubQuerySelect (either (const "") show whereSubQuerySelect)
     --
     --   -- TODO: figure out how to encode these into the type system to make them impossible
     --   suite "select result should be a Left contructor if the query is invalid" do
@@ -195,7 +195,7 @@ whereSubQuerySelect =
     # where_
       [ user_id ===
           selectW order_user_id
-          # fromW_ users
+          # fromW_ orders
           # whereW
             [ item_id === 10 ]
       ]
@@ -205,7 +205,9 @@ expectedShowWhereSubQuerySelect =
   """SELECT
     public.users.email
 FROM public.users
-WHERE public.users.user_id = (SELECT public.orders.user_id
+WHERE public.users.user_id = (
+SELECT
+    public.orders.user_id
 FROM public.orders
 WHERE public.orders.item_id = $1)"""
 

@@ -199,7 +199,7 @@ instance eqColumnWhereNull ::  EqColumn (Column a) Unit WhereExpr where
 instance eqColumnWhereQuery :: EqColumn (Column a) (SELECT Unit) WhereExpr where
   eqColumn col1 fromWCols@(SELECT from wheres orders (ColGroup _ _ _ col2)) =
     ColEqSubQuery
-      (\paramCount -> show col1 <> " = (" <> (showSELECTWithParamCount paramCount fromWCols) <> ")")
+      (\paramCount -> show col1 <> " = (\n" <> (showSELECTWithParamCount paramCount fromWCols) <> ")")
       (getParams fromWCols)
 
 whereQuery :: forall a. (Show a) => Column a -> (SELECT Unit) -> WhereExpr
@@ -234,9 +234,12 @@ fromW table toFrom =
 
 showSELECTWithParamCount :: forall a. Show a => Int -> (SELECT a) -> String
 showSELECTWithParamCount paramCount (SELECT from wheres orders colGroup) =
-  "SelectInto " <> show from
-  <> showWheres paramCount wheres
-  <> showOrders orders
+  "SELECT"
+    <> show colGroup
+    <> "\nFROM"
+    <> show from
+    <> showWheres paramCount wheres
+    <> showOrders orders
 
 showWheres :: Int -> WHERE -> String
 showWheres paramCount (WHERE wheres) = if null wheres
