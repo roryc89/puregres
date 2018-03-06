@@ -8,7 +8,7 @@ import Data.Foreign (tagOf, toForeign)
 import Data.Foreign.NullOrUndefined (NullOrUndefined(..))
 import Data.Maybe (Maybe(..))
 import Puregres.Select
-import Puregres.Type (Table(..))
+import Puregres.Type
 import Test.TestUtils (unsafeToStringJs)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert

@@ -3,50 +3,17 @@ module Puregres.Select where
 import Prelude
 
 import Control.Apply (lift2)
-import Data.Array (all, catMaybes, length, null, uncons)
+import Data.Array (catMaybes, length, null, uncons)
 import Data.Either (Either(..))
 import Data.Foreign (F, Foreign, ForeignError(..), fail, readNull)
-import Data.Foreign.Class (class Decode, decode)
 import Data.Foreign.Index ((!))
-import Data.List.Lazy.NonEmpty (fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Traversable (traverse)
 import Database.Postgres.SqlValue (SqlValue)
 import Puregres.PuregresSqlValue (class IsSqlValue, decode_, toSql)
-import Puregres.Type (Table(..))
-
-newtype Column a = Column
-  { name :: String
-  , table :: Table
-  , d :: Foreign -> F a
-  }
-
-makeColumn :: forall a. IsSqlValue a => Table -> String -> Column a
-makeColumn table name = Column
-  { name
-  , table: table
-  , d: \f -> f ! name >>= decode_
-  }
-
-instance columnFunctor :: Functor Column where
-  map f (Column c) = Column c {d = functorColumnDecoder f c.d}
-
-functorColumnDecoder :: forall a b. (a -> b) -> (Foreign -> F a) -> (Foreign -> F b)
-functorColumnDecoder f dec = map (map f) dec
-
-instance columnApply :: Apply Column where
-  apply (Column col1) (Column col2) =
-    Column $ col1 {d = applyColumnDecoder col1.d col2.d}
-
-applyColumnDecoder :: forall a b. (Foreign -> F (a -> b)) -> (Foreign -> F a) -> (Foreign -> F b)
-applyColumnDecoder = lift2 apply
-
-instance columnShow :: Show (Column a) where
-  show (Column c) = (show c.table) <> "." <> c.name
-
-addMaybe :: forall a. IsSqlValue a => Column a -> Column (Maybe a)
-addMaybe (Column c) = Column c{d = \f -> f ! c.name >>= readNull >>= traverse decode_}
+import Puregres.Type
+import Puregres.Where (WHERE(..), WhereExpr(..))
 
 newtype Select a = Select a
 
@@ -180,13 +147,6 @@ whereW :: forall a. Array WhereExpr -> SELECT a -> SELECT a
 whereW wheres (SELECT from (WHERE currentWheres) orders colGroup) =
       (SELECT from (WHERE (currentWheres <> wheres)) orders colGroup)
 
-newtype WHERE = WHERE (Array WhereExpr)
-
-data WhereExpr
-  = ColEq String SqlValue
-  | ColNull String
-  | ColEqSubQuery (Int -> String) (Array SqlValue)
-
 class EqColumn col value result where
   eqColumn :: col -> value -> result
 
@@ -294,17 +254,13 @@ showOrders (ORDER_BY orders) = if null orders
   then ""
   else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
 
+-- MAKE QUERY
+
+
+
 -- INFIXES
 
 infixl 4 combine as ..
 infixl 1 colIntoColGroup as &*
 infixl 1 colIntoColGroupM as &?
 infixl 0 eqColumn as ===
-
--- instance selectExprSelectAndColGroup :: SelectExpr (SelectAndColGroup (a -> b)) (ColGroup)
--- nullable ::
-
--- on :: forall a. Table -> EqC a -> On
--- on s (EqC c1 c2) = On ("ON " <> show c1 <> " = " <> show c2) (TABLE s)
-
--- data SelectWithFn

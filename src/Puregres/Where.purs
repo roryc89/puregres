@@ -1,4 +1,10 @@
-module Puregres.Where where
+module Puregres.Where (WHERE(..), WhereExpr(..)) where
 
--- data Where
---   = WhereColIs
+import Database.Postgres.SqlValue (SqlValue)
+
+newtype WHERE = WHERE (Array WhereExpr)
+
+data WhereExpr
+  = ColEq String SqlValue
+  | ColNull String
+  | ColEqSubQuery (Int -> String) (Array SqlValue)
