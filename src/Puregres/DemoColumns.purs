@@ -117,3 +117,4 @@ res2 = select $ (cols_ f)
         # whereVal ITEM_ID 8
         # whereSub ITEM_ID ORDER_ID
           ((from $ orders unit) # whereVal ORDER_ID 9)
+        # orderBy ORDER_NAME ASC

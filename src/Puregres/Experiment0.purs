@@ -139,24 +139,12 @@ anotherIntoCol (FROM tableExpr fn) col = FROM tableExpr ((lift2 apply) fn (from 
 infixl 2 anotherIntoCol as >>
 
 -- ooo = on ORDER_ITEM_ID ITEM_ID
-
-res2 :: SelectQuery
-  { order_id :: Int
-  , order_name :: String
-  }
-res2 = select $ FROM f
-  {order_id:_, order_name:_} >>>
-  ORDER_ID >> ORDER_NAME
-    where f = orders $
-    inner_join (items unit) (on ORDER_ITEM_ID ITEM_ID)
-
 inner_join = flip INNER_JOIN
 
 data SelectQuery a = SelectQuery String (Foreign -> F a)
 
 select :: forall a b. Show a => FROM a (Foreign -> F b) -> SelectQuery b
 select (FROM a b) = SelectQuery (show a) b
-
 
 submissions = TABLE Submissions
 items = TABLE Items
