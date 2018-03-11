@@ -50,6 +50,16 @@ appendStr (Column a) col =
 andCol :: forall a b. Column (a -> b) -> Column a -> Column b
 andCol c0 c1 = appendStr (c0 <*> c1) c1
 
+type ColumnsWoDecoders = Array ColumnWoDecoder
+
+data ColumnWoDecoder =  ColumnWoDecoder {name :: String, table :: Table}
+
+instance showColumnWoDecoder :: Show ColumnWoDecoder where
+  show (ColumnWoDecoder c)= show c.table <> "." <> c.name
+
+removeDecoder :: forall a. Column a -> ColumnWoDecoder
+removeDecoder (Column {name, table}) = ColumnWoDecoder {name, table}
+
 newtype Table = Table String
 
 derive instance eqTable :: Eq Table

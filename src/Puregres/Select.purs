@@ -13,7 +13,7 @@ import Data.Traversable (traverse)
 import Database.Postgres.SqlValue (SqlValue)
 import Puregres.PuregresSqlValue (class IsSqlValue, decode_, toSql)
 import Puregres.Type
-import Puregres.Where (WHERE(..), WhereExpr(..))
+import Puregres.Where (WHERE(..), WhereExpr(..), showWheres)
 
 newtype Select a = Select a
 
@@ -33,12 +33,14 @@ instance onShow :: Show On where
   show (On str sel) = show sel <> " " <> str
 
 on :: forall a. Table -> EqC -> On
-on s (EqC c1 c2) = On ("ON " <> showColumnWoDecoder c1 <> " = " <> showColumnWoDecoder c2) (TABLE s)
+on s (EqC c1 c2) = On ("ON " <> show c1 <> " = " <> show c2) (TABLE s)
 
 data EqC = EqC ColumnWoDecoder ColumnWoDecoder
 
 eqC :: forall a. Column a -> Column a -> EqC
-eqC (Column col1) (Column col2) = EqC {name: col1.name, table:col1.table} {name: col2.name, table:col2.table}
+eqC (Column col1) (Column col2) = EqC
+  (ColumnWoDecoder {name: col1.name, table:col1.table})
+  (ColumnWoDecoder {name: col2.name, table:col2.table})
 
 instance eqColumnEqC :: EqColumn (Column a) (Column a) EqC where
   eqColumn = eqC
@@ -47,14 +49,7 @@ data ColGroup a = ColGroup ColumnsWoDecoders Tables NullableTables (Column a)
 
 instance showColGroup :: Show (ColGroup a) where
   show (ColGroup columnsWoDecoders _ _ _) = joinWith "," $
-     map (\c -> "\n    " <> show c.table <> "." <> c.name) columnsWoDecoders
-
-type ColumnsWoDecoders = Array ColumnWoDecoder
-
-type ColumnWoDecoder =  {name :: String, table :: Table}
-
-showColumnWoDecoder :: ColumnWoDecoder -> String
-showColumnWoDecoder c = show c.table <> "." <> c.name
+     map (\c -> "\n    " <> show c) columnsWoDecoders
 
 type NullableTables = Array Table
 
@@ -65,16 +60,16 @@ class SelectExpr old expr new where
 
 col :: forall a b. Column a -> Select (a -> b) ->  ColGroup b
 col c@(Column column) (Select f) =
-  ColGroup [{name: column.name, table:column.table}] [column.table] [] (map f c)
+  ColGroup [removeDecoder c] [column.table] [] (map f c)
 
 colM :: forall a b. IsSqlValue a => Column a -> Select (Maybe a -> b) -> ColGroup b
 colM c@(Column column) (Select f) =
-  ColGroup [{name: column.name, table:column.table}] [] [column.table] (map f (addMaybe c))
+  ColGroup [removeDecoder c] [] [column.table] (map f (addMaybe c))
 
 colIntoColGroup :: forall a b. ColGroup (a -> b) -> Column a -> ColGroup b
 colIntoColGroup (ColGroup columnsWoDecoders tables nullableTables column) c@(Column newColumn) =
   ColGroup
-    (columnsWoDecoders <> [{name: newColumn.name, table: newColumn.table}])
+    (columnsWoDecoders <> [removeDecoder c])
     (tables <> [newColumn.table])
     nullableTables
     (column <*> c)
@@ -82,7 +77,7 @@ colIntoColGroup (ColGroup columnsWoDecoders tables nullableTables column) c@(Col
 colIntoColGroupM :: forall a b. IsSqlValue a => ColGroup (Maybe a -> b) -> Column a -> ColGroup b
 colIntoColGroupM (ColGroup columnsWoDecoders tables nullableTables column) c@(Column newColumn) =
   ColGroup
-    (columnsWoDecoders <> [{name: newColumn.name, table: newColumn.table}])
+    (columnsWoDecoders <> [removeDecoder c])
     tables
     (nullableTables <> [newColumn.table])
     (column <*> (addMaybe c))
@@ -150,10 +145,10 @@ whereW wheres (SELECT from (WHERE currentWheres) orders colGroup) =
 class EqColumn col value result where
   eqColumn :: col -> value -> result
 
-instance eqColumnWhereSqlValue :: (IsSqlValue a) => EqColumn (Column a) a WhereExpr where
+instance eqColumnWhereSqlValue :: IsSqlValue a => EqColumn (Column a) a WhereExpr where
   eqColumn col val = ColEq (show col) (toSql val)
 
-instance eqColumnWhereNull ::  EqColumn (Column a) Unit WhereExpr where
+instance eqColumnWhereNull :: EqColumn (Column a) Unit WhereExpr where
   eqColumn col unit = ColNull (show col)
 
 instance eqColumnWhereQuery :: EqColumn (Column a) (SELECT Unit) WhereExpr where
@@ -171,7 +166,7 @@ whereQuery col1 fromWCols@(SELECT from wheres orders (ColGroup _ _ _ col2)) =
 selectW :: forall a. Column a -> ColGroup Unit
 selectW c@(Column column) =
     ColGroup
-      [{name: column.name, table:column.table}]
+      [removeDecoder c]
       []
       []
       (Column
@@ -200,22 +195,6 @@ showSELECTWithParamCount paramCount (SELECT from wheres orders colGroup) =
     <> show from
     <> showWheres paramCount wheres
     <> showOrders orders
-
-showWheres :: Int -> WHERE -> String
-showWheres paramCount (WHERE wheres) = if null wheres
-  then ""
-  else "\nWHERE " <> joinWith "\nAND " (go [] paramCount wheres)
-  where
-    go :: Array String -> Int -> Array WhereExpr -> Array String
-    go result paramCount wheres = case uncons wheres of
-      Nothing -> result
-      Just {head, tail} -> case head of
-        ColEq str _ ->
-          go (result <> [str <> " = " <> "$" <> show paramCount]) (paramCount + 1) tail
-        ColNull str  ->
-          go (result <> [str <> " = NULL"]) paramCount tail
-        ColEqSubQuery queryString params ->
-          go (result <> [queryString paramCount]) (paramCount + length params) tail
 
 getParams :: forall a. SELECT a -> Array SqlValue
 getParams (SELECT _ (WHERE wheres) _ _) = wheres >>= \whereExpr ->
