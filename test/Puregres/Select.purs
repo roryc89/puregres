@@ -2,11 +2,11 @@ module Test.Puregres.Select where
 
 import Prelude
 import Control.Monad.Free (Free)
-import Data.Foreign (tagOf, toForeign)
 import Data.Maybe (Maybe(..))
-import Puregres.Class (params)
-import Puregres.Select (Direction(..), SelectQuery, cols_, end, from, fromC, inner_join, on, order_by, select, whereSub, whereVal, (.>>), (>>))
-import Test.TestUtils (unsafeToStringJs)
+import Puregres.Class (params, class Params)
+import Puregres.Type
+import Puregres.Select (Direction(..), SelectQuery, cols_, from, fromC, inner_join, on, order_by, select, whereSub, whereVal, (.>>), (>>))
+import Test.TestUtils (unsafeToStringJs, getParamStrings, getParamTypes)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
 
@@ -48,11 +48,6 @@ runTest = suite "Test.Puregres.Select" do
         Assert.equal ["Boolean", "Number", "String"] (getParamTypes whereSubQuerySelect)
 
 
-getParamStrings :: forall a . SelectQuery a -> Array String
-getParamStrings = params >>> (map unsafeToStringJs)
-
-getParamTypes :: forall a . SelectQuery a -> Array String
-getParamTypes = params >>> map (toForeign >>> tagOf)
 
 simpleSelect :: SelectQuery { email :: String }
 simpleSelect = select $ f

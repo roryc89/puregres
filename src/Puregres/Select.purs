@@ -7,14 +7,10 @@ import Data.Foreign.Index ((!))
 import Data.String (joinWith)
 import Database.Postgres.SqlValue (SqlValue)
 import Prelude
-import Puregres.Class (params, class Params)
+import Puregres.Class (params, class Params, class Column, class ColOf, from_)
+import Puregres.Type
 import Puregres.Where (WHERE(..), WhereExpr(..), showWheres)
 import Puregres.PuregresSqlValue (decode_, class IsSqlValue, toSql)
-
-data TABLE t next = TABLE t next
-
-instance showTABLE :: (Show a, Show b) => Show (TABLE a b) where
-  show (TABLE a b) = " " <> show a <> show b
 
 data INNER_JOIN a = INNER_JOIN String String (On a)
 
@@ -35,11 +31,6 @@ on a b t = On (show a <> " = " <> show b) t
 
 instance showLEFT_JOIN :: (Show a) => Show (LEFT_JOIN a) where
   show (LEFT_JOIN a) = "\n  LEFT JOIN" <> show a
-
-class Column c res | c -> res
-
-class (Column c res) <= ColOf c t res | c t -> res where
-  from_ :: c -> t -> Foreign -> F res
 
 data SELECT tableExpr fn = SELECT (Array String) tableExpr WHERE ORDER_BY fn
 
@@ -174,15 +165,7 @@ order_by :: forall col t val.
 order_by col direction =
   orderExprIntoFROM (Order (show col) direction)
 
--- end
 
-data EndQuery = EndQuery
-
-end :: EndQuery
-end = EndQuery
-
-instance showEndQuery :: Show EndQuery where
-  show _ = ""
 
 -- instance helper functions
 
@@ -192,5 +175,5 @@ fromTable t (TABLE a b) = from_ t b
 fromInnerJoin :: forall a b c. ColOf a b c => a -> INNER_JOIN b -> Foreign -> F c
 fromInnerJoin t (INNER_JOIN _ _ (On _ a)) = from_ t a
 
-getPropAndDecode :: forall t a res. Show t => IsSqlValue res => t -> a -> Foreign -> F res
-getPropAndDecode t a f = f ! (show t) >>= decode_
+getPropAndDecode :: forall col t res. Show col => IsSqlValue res => col -> t -> Foreign -> F res
+getPropAndDecode col t f = f ! show col >>= decode_

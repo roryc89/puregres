@@ -1,4 +1,0 @@
-NullOrUndefined -> Maybe
-use our own class instead of decode for this (include in PuregresSqlValue)
-
-Try to make a sequential steps to make query (Record with Tuple values?)

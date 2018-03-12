@@ -11,6 +11,11 @@ import Data.Maybe (Maybe)
 import Data.Traversable (traverse)
 import Puregres.PuregresSqlValue (class IsSqlValue, decode_)
 
+data TABLE t next = TABLE t next
+
+instance showTABLE :: (Show a, Show b) => Show (TABLE a b) where
+  show (TABLE a b) = " " <> show a <> show b
+
 newtype Column a = Column
   { name :: String
   , table :: Table
@@ -66,3 +71,13 @@ derive instance eqTable :: Eq Table
 
 instance showTable :: Show Table where
   show (Table s) = s
+
+-- end
+
+data EndQuery = EndQuery
+
+end :: EndQuery
+end = EndQuery
+
+instance showEndQuery :: Show EndQuery where
+  show _ = ""
