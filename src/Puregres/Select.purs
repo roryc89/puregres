@@ -44,17 +44,21 @@ class (Column c res) <= ColOf c t res | c t -> res where
 data SELECT tableExpr fn = SELECT (Array String) tableExpr WHERE ORDER_BY fn
 
 instance showSELECT :: (Show tableExpr) => Show (SELECT tableExpr fn) where
-  show = showSELECTWithParamCount 1
+  show = showSELECTWithParamCount true 1
 
 showSELECTWithParamCount :: forall t f. (Show t) =>
-  Int -> SELECT t f -> String
-showSELECTWithParamCount paramCount (SELECT showCols tableExpr where_ orderBy _) =
+  Boolean -> Int -> SELECT t f -> String
+showSELECTWithParamCount aliasColumns paramCount (SELECT shownCols tableExpr where_ orderBy _) =
     "SELECT\n    "
-      <> joinWith ",    " showCols
+      <> colString
       <> "\nFROM"
       <> show tableExpr
       <> showWheres paramCount where_
       <> show orderBy
+    where
+      colString = shownCols
+        # map (\c -> if aliasColumns then c <> " as \"" <> c <> "\"" else c)
+        # joinWith ",\n    "
 
 intoCol :: forall col table res1 res2. ColOf col table res1 => Show col =>
   SELECT table (res1 -> res2)
@@ -107,7 +111,7 @@ whereSub col1 col2 (FROM t wheres orderBys) =
    whereExprIntoFROM (ColEqSubQuery str (params wheres))
      where
        sel = SELECT [show col2] t wheres orderBys unit
-       str i = show col1 <> " = (\n" <> showSELECTWithParamCount i sel <> ")"
+       str i = show col1 <> " = (\n" <> showSELECTWithParamCount false i sel <> ")"
 
 from :: forall t. t -> FROM t
 from t = FROM t (WHERE []) (ORDER_BY [])
@@ -131,15 +135,11 @@ instance paramsSelectQuery :: Params (SelectQuery a) where
   params (SelectQuery _ p _) = p
 
 select :: forall a b. Show a => SELECT a (Foreign -> F b) -> SelectQuery b
-select (SELECT shownCols t where_ orderBy b) =
+select sel@(SELECT shownCols t where_ orderBy b) =
   SelectQuery
-    ("SELECT\n    " <> colString <> "\nFROM" <> show t <> show where_ <> show orderBy)
+    (show sel)
     (params where_)
     b
-  where
-    colString = shownCols
-      # map (\c -> c <> " as \"" <> c <> "\"")
-      # joinWith ",\n    "
 
 -- ORDER BY
 
