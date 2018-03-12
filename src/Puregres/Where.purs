@@ -14,7 +14,7 @@ newtype WHERE = WHERE (Array WhereExpr)
 
 instance semigroup :: Semigroup WHERE where
   append (WHERE wheres1) (WHERE wheres2) = WHERE (wheres1 <> wheres2)
-  
+
 instance monoidWHERE :: Monoid WHERE where
   mempty = WHERE []
 
@@ -23,6 +23,9 @@ data WhereExpr
   | ColNull String
   | ColEqSubQuery (Int -> String) (Array SqlValue)
 
+instance showWHERE :: Show WHERE where
+  show = showWheres 1
+  
 showWheres :: Int -> WHERE -> String
 showWheres paramCount (WHERE wheres) = if null wheres
   then ""
