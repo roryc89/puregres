@@ -2,13 +2,14 @@ module Puregres.PuregresSqlValue where
 
 import Prelude
 
+import Control.Monad.Except (except)
 import Data.Date (canonicalDate, day, month, year)
-import Data.DateTime (DateTime(DateTime))
-import Data.Enum (fromEnum)
-import Data.Foreign (F, Foreign, ForeignError(..), fail, readArray, readNull)
+import Data.DateTime (DateTime(DateTime), Time(..))
+import Data.Either (note)
+import Data.Enum (class BoundedEnum, fromEnum, toEnum)
+import Data.Foreign (F, Foreign, ForeignError(ForeignError), fail, readArray, readNull)
 import Data.Foreign.Class (class Decode, decode)
-import Data.Int (toNumber)
-import Data.List.Types (NonEmptyList(..))
+import Data.Int (fromString, toNumber)
 import Data.Maybe (Maybe)
 import Data.Nullable (toNullable)
 import Data.String (Pattern(..), split)
@@ -46,20 +47,22 @@ instance isSqlValueArray :: (IsSqlValue a, Decode a) => IsSqlValue (Array a) whe
   decode_ f = readArray f >>= traverse decode
 
 instance isSqlValueDateTime :: IsSqlValue DateTime where
-  decode_ f = fail $ ForeignError "date and time not matched"
-    --  decoded :: String <- decode f
-    --  parsed :: DateTime <- parse decoded
-    --  pure parsed
-    -- where
-    --   parse :: String -> F DateTime
-    --   parse string =
-    --     case split (Pattern " ") string of
-    --       [date, time] ->
-    --         case [split (Pattern "-") date, split (Pattern ":") time] of
-    --           [[year, month, day], [hour, minute, second]] ->
-    --             DateTime (canonicalDate (Y))
-    --
-    --       _ ->  fail $ ForeignError "date and time not matched"
+  decode_ f = do
+     decoded :: String <- decode f
+     parsed :: DateTime <- parse decoded
+     pure parsed
+    where
+      parse :: String -> F DateTime
+      parse string =
+        case split (Pattern " ") string of
+          [date, time] ->
+            case [split (Pattern "-") date, split (Pattern ":") time] of
+              [[year, month, day], [hour, minute, second]] ->
+                 decodeDateTimeParts year month day hour minute second
+
+              _ -> fail $ ForeignError "date or time parts not matched"
+
+          _ ->  fail $ ForeignError "date and time not matched"
 
   toSql = toSql <<< format
     where
@@ -74,3 +77,20 @@ instance isSqlValueDateTime :: IsSqlValue DateTime where
       zeroPad :: Int -> String
       zeroPad i | i < 10 = "0" <> (show i)
       zeroPad i = show i
+
+decodeDateTimeParts :: String -> String -> String -> String -> String -> String -> F DateTime
+decodeDateTimeParts yearStr monthStr dayStr hourStr minuteStr secondStr = do
+  year <- strToEnum yearStr
+  month <- strToEnum monthStr
+  day <- strToEnum dayStr
+  hour <- strToEnum hourStr
+  minute <- strToEnum minuteStr
+  second <- strToEnum secondStr
+  pure $ DateTime
+   (canonicalDate year month day)
+   (Time hour minute second bottom)
+
+strToEnum :: forall a. Bounded a => BoundedEnum a => String -> F a
+strToEnum a = fromString a >>= toEnum
+  # note (pure $ ForeignError $ "could not convert string to enum: " <> a)
+  # except
