@@ -26,10 +26,16 @@ runTest = suite "Test.Puregres.Insert" do
         Assert.equal ["10", "test notes"] (getParamStrings simpleInsert)
         Assert.equal ["Number", "String"] (getParamTypes simpleInsert)
 
-simpleInsert :: InsertInto (TABLE Orders EndQuery) ORDER_NOTES
+      test "insertReturning" do
+
+        Assert.equal expectedShowInsertReturning $ show insertReturning
+        Assert.equal ["10", "test notes"] (getParamStrings insertReturning)
+        Assert.equal ["Number", "String"] (getParamTypes insertReturning)
+
+simpleInsert :: InsertInto (TABLE Orders EndQuery)
 simpleInsert =
   insertInto
-    (orders end)
+    orders
     (col (ITEM_ID /\ 10)
       ++ (ORDER_NOTES /\ "test notes")
     )
@@ -41,4 +47,18 @@ VALUES
   ($1, $2)
 """
 
--- insertWithReturn ::
+insertReturning :: InsertIntoReturning (TABLE Orders EndQuery) ORDER_ID
+insertReturning =
+  insertInto
+    orders
+    (col (ITEM_ID /\ 10)
+      ++ (ORDER_NOTES /\ "test notes")
+    )
+    # returning ORDER_ID
+
+expectedShowInsertReturning :: String
+expectedShowInsertReturning = """INSERT INTO orders
+  (item_id, order_notes)
+VALUES
+  ($1, $2)
+RETURNING order_id"""

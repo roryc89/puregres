@@ -11,6 +11,7 @@ import Data.Tuple.Nested (type (/\), (/\))
 import Database.Postgres.SqlValue (SqlValue)
 import Puregres.Class
 import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
+import Puregres.Type (end, EndQuery)
 import Puregres.Where (WHERE(..))
 
 data InsertCols t = InsertCols (Array String) (Array SqlValue)
@@ -40,31 +41,47 @@ andCol (InsertCols cs sqls) (c /\ r) = InsertCols newCs newSqls
 
 infixl 3 andCol as ++
 
-data InsertInto t c = InsertInto t (InsertCols t) (Maybe c)
+data InsertInto t = InsertInto t (InsertCols t)
 
-insertInto :: forall t c r. ColOf c t r => t -> InsertCols t -> InsertInto t c
-insertInto table into =
-  InsertInto table into Nothing
-
-insertIntoReturning :: forall t c1 c2 r. ColOf c1 t r => ColOf c2 t r =>
-  t
-  -> InsertCols t
-  -> Maybe c1
-  -> InsertInto t c1
-insertIntoReturning table into returning =
-  InsertInto table into returning
-
-instance showInsertInto :: (Show t, Show c) => Show (InsertInto t c) where
-  show (InsertInto t cols returningM) =
+instance showInsertInto :: (Show t) => Show (InsertInto t) where
+  show (InsertInto t cols) =
     "INSERT INTO"
     <> show t
     <> show cols
-    <> returning
-    where
-      returning = maybe "" (\c -> "\nRETURNING " <> show c) returningM
-      
-instance paramsInsertInto :: Params (InsertInto t c) where
-  params (InsertInto _ insertCols _) = params insertCols
+
+instance paramsInsertInto :: Params (InsertInto t) where
+  params (InsertInto _ insertCols) = params insertCols
+
+data InsertIntoReturning t c = InsertIntoReturning t (InsertCols t) c
+
+instance showInsertIntoReturning :: (Show t, Column c r) => Show (InsertIntoReturning t c) where
+  show (InsertIntoReturning t cols returning) =
+    "INSERT INTO"
+    <> show t
+    <> show cols
+    <> "RETURNING "
+    <> colName returning
+
+instance paramsInsertIntoReturning :: Params (InsertIntoReturning t c) where
+  params (InsertIntoReturning _ insertCols _) = params insertCols
+
+insertInto :: forall t. (EndQuery -> t) -> InsertCols t -> InsertInto t
+insertInto table into =
+  InsertInto (table end) into
+
+returning :: forall t c r. ColOf c t r => c -> InsertInto t -> InsertIntoReturning t c
+returning ret (InsertInto t cols) =
+  InsertIntoReturning t cols ret
+
+-- insertIntoReturning :: forall t c1 r. ColOf c1 t r =>
+--   (EndQuery -> t)
+--   -> InsertCols t
+--   -> c1
+--   -> InsertIntoReturning t c1
+-- insertIntoReturning table into returning =
+--   InsertIntoReturning (table end) into returning
+
+
 
 -- data InsertInto t = InsertInto (Array String) (Array )
 -- insertInto ::
