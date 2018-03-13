@@ -1,19 +1,15 @@
 module Test.Puregres.Insert where
 
-import Prelude
+import Prelude (Unit, discard, show, (#), ($))
+import Puregres.Insert (InsertInto, InsertIntoReturning, insertInto, returning)
+import Puregres.Type (EndQuery, TABLE)
+import Test.Puregres.TestData (ITEM_ID(..), ORDER_ID(..), ORDER_NOTES(..), Orders, orders)
 import Control.Monad.Free (Free)
-import Data.Foreign (tagOf, toForeign)
-import Data.Maybe (Maybe(..))
-import Data.Tuple.Nested (type (/\), (/\))
-import Puregres.Class (params)
-import Puregres.Insert
-import Puregres.Type
--- import Puregres.Type
-import Test.TestUtils (unsafeToStringJs, getParamStrings, getParamTypes)
+import Data.Tuple.Nested ((/\))
+import Puregres.InsertOrUpdateCols (col, (++))
+import Test.TestUtils (getParamStrings, getParamTypes)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
-
-import Test.Puregres.TestData
 
 runTest :: forall a. Free (TestF a) Unit
 runTest = suite "Test.Puregres.Insert" do
