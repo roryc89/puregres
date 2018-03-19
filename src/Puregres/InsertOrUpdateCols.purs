@@ -21,13 +21,13 @@ instance showInsertOrUpdateCols :: Show (InsertOrUpdateCols t) where
 instance paramsInsertOrUpdateCols :: Params (InsertOrUpdateCols t) where
   params (InsertOrUpdateCols _ p) = p
 
-col :: forall t c r. ColOf c t r => IsSqlValue r => c /\ r -> InsertOrUpdateCols t
+col :: forall t c gets colType. ColOf c gets colType t => IsSqlValue colType => c /\ colType -> InsertOrUpdateCols t
 col (c /\ r) = InsertOrUpdateCols [colName c ] [toSql r]
 
-andCol :: forall t c r. ColOf c t r => Show c => IsSqlValue r =>
-  InsertOrUpdateCols t
-  -> c /\ r
-  -> InsertOrUpdateCols t
+andCol :: forall table col gets colType. ColOf col gets colType table => Show col => IsSqlValue colType =>
+  InsertOrUpdateCols table
+  -> col /\ colType
+  -> InsertOrUpdateCols table
 andCol (InsertOrUpdateCols cs sqls) (c /\ r) = InsertOrUpdateCols newCs newSqls
   where
     newCs = cs <> [colName c]

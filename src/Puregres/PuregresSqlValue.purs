@@ -38,6 +38,10 @@ instance isSqlValueBoolean :: IsSqlValue Boolean where
   toSql = unsafeCoerce
   decode_ = decode
 
+instance isSqlValueSqlValue :: IsSqlValue SqlValue where
+  toSql = unsafeCoerce
+  decode_ = unsafeCoerce
+
 instance isSqlValueMaybe :: (IsSqlValue a, Decode a) => IsSqlValue (Maybe a) where
   toSql = unsafeCoerce <<< toNullable <<< (toSql <$> _)
   decode_ f = readNull f >>= traverse decode

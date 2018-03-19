@@ -1,16 +1,16 @@
 module Test.Puregres.Insert where
-
+--
 import Prelude (Unit, discard, show, (#), ($))
 import Puregres.Insert (InsertInto, InsertIntoReturning, insertInto, returning)
 import Puregres.Type (EndQuery, TABLE)
-import Test.Puregres.TestData (ITEM_ID(..), ORDER_ID(..), ORDER_NOTES(..), Orders, orders)
+import Test.Puregres.TestDataNew (ITEM_ID(..), ORDER_ID(..), ORDER_NOTES(..), Orders, orders)
 import Control.Monad.Free (Free)
 import Data.Tuple.Nested ((/\))
 import Puregres.InsertOrUpdateCols (col, (++))
 import Test.TestUtils (getParamStrings, getParamTypes)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
-
+--
 runTest :: forall a. Free (TestF a) Unit
 runTest = suite "Test.Puregres.Insert" do
   suite "insertInto function" do
@@ -37,7 +37,8 @@ simpleInsert =
     )
 
 expectedShowSimpleInsert :: String
-expectedShowSimpleInsert = """INSERT INTO orders
+expectedShowSimpleInsert =
+  """INSERT INTO orders
   (item_id, order_notes)
 VALUES
   ($1, $2)
