@@ -2,7 +2,7 @@ module Test.Puregres.TestDataNew where
 
 import Prelude
 
-import Puregres.SelectCols (INNER_JOIN)
+import Puregres.Select (INNER_JOIN)
 import Puregres.Class (class Col, class ColOf)
 import Data.Foreign.Index ((!))
 import Data.Maybe (Maybe)

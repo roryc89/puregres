@@ -1,177 +1,190 @@
 module Puregres.Select where
---
--- import Control.Apply (lift2)
--- import Data.Array (null)
--- import Data.Foreign (Foreign, F)
--- import Data.Foreign.Index ((!))
--- import Data.String (joinWith)
--- import Database.Postgres.SqlValue (SqlValue)
--- import Prelude
--- import Puregres.Class (params, class Params, class Column, class ColOf, from_)
--- import Puregres.Type
--- import Puregres.Where (WHERE(..), WhereExpr(..), showWheres)
--- import Puregres.PuregresSqlValue (decode_, class IsSqlValue, toSql)
---
--- data INNER_JOIN a = INNER_JOIN String String (On a)
---
--- data LEFT_JOIN a = LEFT_JOIN (On a)
---
--- instance showINNER_JOIN :: (Show a) => Show (INNER_JOIN a) where
---   show (INNER_JOIN t next on) = "\n  INNER JOIN" <> t <> show on <> next
---
--- data On a = On String a
---
--- instance showOn :: Show a => Show (On a) where
---   show (On s _) = " ON " <> s
---
--- on :: forall a b res t.
---   Column a res => Column b res => ColOf b t res => Show a => Show b =>
---   a -> b -> t -> On t
--- on a b t = On (show a <> " = " <> show b) t
---
--- instance showLEFT_JOIN :: (Show a) => Show (LEFT_JOIN a) where
---   show (LEFT_JOIN a) = "\n  LEFT JOIN" <> show a
---
--- data SELECT tableExpr fn = SELECT (Array String) tableExpr WHERE ORDER_BY fn
---
--- instance showSELECT :: (Show tableExpr) => Show (SELECT tableExpr fn) where
---   show = showSELECTWithParamCount true 1
---
--- showSELECTWithParamCount :: forall t f. (Show t) =>
---   Boolean -> Int -> SELECT t f -> String
--- showSELECTWithParamCount aliasColumns paramCount (SELECT shownCols tableExpr where_ orderBy _) =
---     "SELECT\n    "
---       <> colString
---       <> "\nFROM"
---       <> show tableExpr
---       <> showWheres paramCount where_
---       <> show orderBy
---     where
---       colString = shownCols
---         # map (\c -> if aliasColumns then c <> " as \"" <> c <> "\"" else c)
---         # joinWith ",\n    "
---
--- intoCol :: forall col table res1 res2. ColOf col table res1 => Show col =>
---   SELECT table (res1 -> res2)
---   -> col
---   -> SELECT table (Foreign -> F res2)
--- intoCol (SELECT shownCols tableExpr w orderBy fn) col =
---   SELECT
---     (shownCols <> [show col])
---     tableExpr
---     w
---     orderBy
---     (map (map fn) (from_ col tableExpr))
---
--- infixl 3 intoCol as .>>
---
--- anotherIntoCol :: forall col table res1 res2. ColOf col table res1 => Show col =>
---   SELECT table (Foreign -> F (res1 -> res2))
---   -> col
---   -> SELECT table (Foreign -> F res2)
--- anotherIntoCol (SELECT shownCols tableExpr w orderBy fn) col =
---   SELECT (shownCols <> [show col]) tableExpr w orderBy ((lift2 apply) fn (from_ col tableExpr))
---
--- infixl 2 anotherIntoCol as >>
---
--- whereIntoSELECT :: forall a b.  WhereExpr -> SELECT a b -> SELECT a b
--- whereIntoSELECT wh (SELECT shownCols a (WHERE whs) ord b) =
---   SELECT shownCols a (WHERE (whs <> [wh])) ord b
---
--- whereExprIntoFROM :: forall a. WhereExpr -> FROM a -> FROM a
--- whereExprIntoFROM wh (FROM a (WHERE whs) orderBy) = (FROM a (WHERE (whs <> [wh])) orderBy)
---
--- data FROM t = FROM t WHERE ORDER_BY
---
--- whereVal :: forall col t val a b. Show col => IsSqlValue val => ColOf col t val =>
---   col
---   -> val
---   -> FROM t
---   -> FROM t
--- whereVal col val =
---    whereExprIntoFROM (ColVal (show col) (toSql val))
---
--- whereSub :: forall col1 col2 t1 t2 val a b.
---   Show col1 => Show col2 => Show t2 => ColOf col1 t1 val => ColOf col2 t2 val =>
---   col1
---   -> col2
---   -> FROM t2
---   -> FROM t1
---   -> FROM t1
--- whereSub col1 col2 (FROM t wheres orderBys) =
---    whereExprIntoFROM (ColValSubQuery str (params wheres))
---      where
---        sel = SELECT [show col2] t wheres orderBys unit
---        str i = show col1 <> " = (\n" <> showSELECTWithParamCount false i sel <> ")"
---
--- from :: forall t. t -> FROM t
--- from t = FROM t (WHERE []) (ORDER_BY [])
---
--- fromC :: forall t133 t134. t134 -> t133 -> SELECT t134 t133
--- fromC = from >>> cols_
---
--- cols_ :: forall t b . FROM t -> b -> SELECT t b
--- cols_ (FROM t where_ orderBy) b = SELECT [] t where_ orderBy b
---
--- -- inner_join :: forall a b c. (a -> b) -> (b -> On c) -> a -> INNER_JOIN c
--- inner_join :: forall t125 t126. Show t126 => (EndQuery -> t126) -> (t126 -> On t125) -> EndQuery -> INNER_JOIN t125
--- inner_join t o next = INNER_JOIN (show (t end)) (show next) (o (t next))
---
--- data SelectQuery a = SelectQuery String (Array SqlValue) (Foreign -> F a)
---
--- instance showSelectQuery :: Show (SelectQuery a) where
---   show (SelectQuery s _ _) = s
---
--- instance paramsSelectQuery :: Params (SelectQuery a) where
---   params (SelectQuery _ p _) = p
---
--- select :: forall a b. Show a => SELECT a (Foreign -> F b) -> SelectQuery b
--- select sel@(SELECT shownCols t where_ orderBy b) =
---   SelectQuery
---     (show sel)
---     (params where_)
---     b
---
--- -- ORDER BY
---
--- data ORDER_BY = ORDER_BY (Array Order)
---
--- data Order = Order String Direction
---
--- instance showOrder :: Show Order where
---   show (Order str dir) = str <> " " <> (show dir)
---
--- data Direction = ASC | DESC
---
--- instance showDirection :: Show Direction where
---   show ASC = "ASC"
---   show DESC = "DESC"
---
--- orderExprIntoFROM :: forall a. Order -> FROM a -> FROM a
--- orderExprIntoFROM order (FROM a where_ (ORDER_BY orders)) =
---  FROM a where_ (ORDER_BY (orders <> [order]))
---
--- instance showORDER_BY :: Show ORDER_BY where
---   show (ORDER_BY orders) = if null orders
---     then ""
---     else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
---
--- order_by :: forall col t val.
---   Show col => ColOf col t val =>
---   col
---   -> Direction
---   -> FROM t
---   -> FROM t
--- order_by col direction =
---   orderExprIntoFROM (Order (show col) direction)
---
--- -- instance helper functions
---
--- fromTable :: forall b a c d. ColOf a c d => a -> TABLE b c -> Foreign -> F d
--- fromTable t (TABLE a b) = from_ t b
---
--- fromInnerJoin :: forall a b c. ColOf a b c => a -> INNER_JOIN b -> Foreign -> F c
--- fromInnerJoin t (INNER_JOIN _ _ (On _ a)) = from_ t a
---
--- getPropAndDecode :: forall col t res. Show col => IsSqlValue res => col -> t -> Foreign -> F res
--- getPropAndDecode col t f = f ! show col >>= decode_
+
+
+import Prelude
+
+import Control.Apply (lift2)
+import Data.Array (null)
+import Data.Foreign (F, Foreign)
+import Data.Record.Builder as Builder
+import Data.String (joinWith)
+import Database.Postgres.SqlValue (SqlValue)
+import Puregres.Class (class Params, params, class Col, class ColOf, getF)
+import Puregres.Comparator (Comparator)
+import Puregres.PostgresType (class PostgresType, postgresType)
+import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
+import Puregres.Type (EndQuery(..), end)
+import Puregres.Where (WHERE(..), WhereExpr(..), showWheres)
+
+
+-- INNER JOIN
+
+data INNER_JOIN a = INNER_JOIN String String (On a)
+
+instance showINNER_JOIN :: (Show a) => Show (INNER_JOIN a) where
+  show (INNER_JOIN t next on) = "\n  INNER JOIN" <> t <> show on <> next
+
+inner_join :: forall a b. Show b => (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
+inner_join t o next = INNER_JOIN (show (t end)) (show next) (o (t next))
+
+data On a = On String a
+
+instance showOn :: Show a => Show (On a) where
+  show (On s _) = " ON " <> s
+
+on :: forall a b t.  Show a => Show b =>
+  a -> b -> t -> On t
+on a b t = On (show a <> " = " <> show b) t
+
+-- COLUMNS
+
+merge :: forall a b c. Union b a c => { | a } -> { | b } -> { | c }
+merge rec1 rec2 = Builder.build (Builder.merge rec1) rec2
+
+data SelectStart gets head tail = SelectStart (Foreign -> F gets) (ColCons head tail)
+
+data ColCons col tail = ColCons col tail
+
+instance showColCons :: (Show col, Show tail) => Show (ColCons col tail) where
+  show (ColCons col tail) = show tail <> show col <> ",\n    "
+
+data ColNil = ColNil
+
+instance showColNil :: Show ColNil where
+  show ColNil = ""
+
+class ColsInSelectFrom cols table
+
+instance colsInAASelectFromExprAAAColNil :: ColsInSelectFrom ColNil t
+
+instance colsInSelectFromExprColCons :: (ColOf col gets colType table, ColsInSelectFrom next table)
+  => ColsInSelectFrom (ColCons col next) table
+
+data SelectFrom cols gets table = SelectFrom (Foreign -> F gets) cols table WHERE ORDER_BY
+
+instance paramsSelectFrom :: Params (SelectFrom cols gets table) where
+  params (SelectFrom _ _ _ where' _) = params where'
+
+instance showSelectFrom :: (Show head, Show tail, Show table)
+  => Show (SelectFrom (ColCons head tail) gets table) where
+    show  = showSELECTWithParamCount 1
+
+showSELECTWithParamCount :: forall head tail gets table. Show head => Show tail => Show table =>
+  Int -> (SelectFrom (ColCons head tail) gets table) -> String
+showSELECTWithParamCount paramCount (SelectFrom _ (ColCons head tail) table where' orderBy) =
+    "SELECT\n    "
+      <> show tail
+      <> show head
+      <> "\nFROM"
+      <> show table
+      <> showWheres paramCount where'
+      <> show orderBy
+
+from :: forall head tail table gets. (ColsInSelectFrom (ColCons head tail) table) =>
+  (EndQuery -> table)
+  -> SelectStart gets head tail
+  -> SelectFrom (ColCons head tail) gets table
+from table (SelectStart gets cols) =
+  SelectFrom gets cols (table EndQuery) (WHERE []) (ORDER_BY [])
+
+select :: forall head gets colType. Col head gets colType => head -> SelectStart gets head ColNil
+select col = SelectStart (getF col) (ColCons col ColNil)
+
+andSelect :: forall tail head newHead getsNew gets r colType.
+  Union gets r getsNew => Col newHead { | r } colType =>
+  SelectStart { | gets } head tail
+  -> newHead
+  -> SelectStart { | getsNew } newHead (ColCons head tail)
+andSelect  (SelectStart gets cols) col =
+  SelectStart
+    (\f -> lift2 merge (getF col f) (gets f))
+    (ColCons col cols)
+
+infixl 5 andSelect as ++
+
+-- WHERE
+
+whereExprIntoSelectFrom :: forall cols gets table. WhereExpr -> SelectFrom cols gets table -> SelectFrom cols gets table
+whereExprIntoSelectFrom wh (SelectFrom cols gets table (WHERE whs) orderBy) =
+  SelectFrom cols gets table (WHERE (whs <> [wh])) orderBy
+
+whereVal :: forall col cols g gets table colType. Show col => IsSqlValue colType => ColOf col g colType table =>
+  col
+  -> Comparator
+  -> colType
+  -> SelectFrom cols gets table
+  -> SelectFrom cols gets table
+whereVal col comparator val =
+   whereExprIntoSelectFrom (ColVal (show col) comparator (toSql val))
+
+whereAny :: forall col cols g gets colType table.
+  Show col => IsSqlValue colType => ColOf col g colType table => PostgresType (Array colType) =>
+  col
+  -> Comparator
+  -> Array colType
+  -> SelectFrom cols gets table
+  -> SelectFrom cols gets table
+whereAny col comparator vals =
+  whereExprIntoSelectFrom (ColAny (show col) comparator (postgresType vals) (map toSql vals))
+
+whereQuery :: forall col cols1 cols2 gets1 gets2 colType table1 table2.
+  Show col => Show table2 => Show cols2 => ColOf col gets2 colType table1 =>
+  col
+  -> Comparator
+  -> SelectFrom (ColCons cols2 ColNil) gets2 table2
+  -> SelectFrom cols1 gets1 table1
+  -> SelectFrom cols1 gets1 table1
+whereQuery col comparator selectFrom =
+  whereExprIntoSelectFrom (ColValSubQuery str (params selectFrom))
+    where
+      str i = show col <> " = (\n" <> showSELECTWithParamCount i selectFrom <> ")"
+
+-- ORDER BY
+
+data ORDER_BY = ORDER_BY (Array Order)
+
+data Order = Order String Direction
+
+instance showOrder :: Show Order where
+  show (Order str dir) = str <> " " <> (show dir)
+
+data Direction = ASC | DESC
+
+instance showDirection :: Show Direction where
+  show ASC = "ASC"
+  show DESC = "DESC"
+
+orderExprIntoSelectFrom :: forall cols gets table.
+  Order -> SelectFrom cols gets table -> SelectFrom cols gets table
+orderExprIntoSelectFrom order (SelectFrom gets cols table where' (ORDER_BY orders)) =
+  SelectFrom gets cols table where' (ORDER_BY (orders <> [order]))
+
+instance showORDER_BY :: Show ORDER_BY where
+  show (ORDER_BY orders) = if null orders
+    then ""
+    else "\nORDER BY\n  " <> joinWith ",\n  " (map show orders)
+
+order_by :: forall col cols gets gets2 table colType.
+  Show col =>
+  ColOf col gets2 colType table =>
+  col
+  -> Direction
+  -> SelectFrom cols gets table
+  -> SelectFrom cols gets table
+order_by col direction =
+  orderExprIntoSelectFrom (Order (show col) direction)
+
+-- END/RUN
+
+data SelectEnded gets = SelectEnded (Foreign -> F gets) String (Array SqlValue)
+
+instance showSelectEnded :: Show (SelectEnded gets) where
+  show (SelectEnded _ s _) = s
+
+instance paramsSelectEnded :: Params (SelectEnded gets) where
+  params (SelectEnded _ _ ps) = ps
+
+endSelect :: forall head tail gets table. Show head => Show tail => Show table =>
+  SelectFrom (ColCons head tail) gets table -> SelectEnded gets
+endSelect selectFrom@(SelectFrom gets _ _ _ _) =
+  SelectEnded gets (show selectFrom) (params selectFrom)
