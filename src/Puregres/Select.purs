@@ -6,6 +6,7 @@ import Prelude
 import Control.Apply (lift2)
 import Data.Array (null)
 import Data.Foreign (F, Foreign)
+import Data.Monoid (mempty)
 import Data.Record.Builder as Builder
 import Data.String (joinWith)
 import Database.Postgres.SqlValue (SqlValue)
@@ -24,8 +25,14 @@ data INNER_JOIN a = INNER_JOIN String String (On a)
 instance showINNER_JOIN :: (Show a) => Show (INNER_JOIN a) where
   show (INNER_JOIN t next on) = "\n  INNER JOIN" <> t <> show on <> next
 
-inner_join :: forall a b. Show b => (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
+-- inner_join :: forall a b. Show b =>
+--   (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
+-- inner_join :: forall a b. Show b =>
+--   (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
+inner_join :: forall t117 t118. Show t118 => (EndQuery -> t118) -> (t118 -> On t117) -> EndQuery -> INNER_JOIN t117
 inner_join t o next = INNER_JOIN (show (t end)) (show next) (o (t next))
+
+
 
 data On a = On String a
 
@@ -33,8 +40,8 @@ instance showOn :: Show a => Show (On a) where
   show (On s _) = " ON " <> s
 
 on :: forall a b t.  Show a => Show b =>
-  a -> b -> t -> On t
-on a b t = On (show a <> " = " <> show b) t
+  a -> Comparator ->  b -> t -> On t
+on a comparator b t = On (show a <> (show comparator) <> show b) t
 
 -- COLUMNS
 
@@ -104,11 +111,13 @@ infixl 5 andSelect as ++
 
 -- WHERE
 
-whereExprIntoSelectFrom :: forall cols gets table. WhereExpr -> SelectFrom cols gets table -> SelectFrom cols gets table
+whereExprIntoSelectFrom :: forall cols gets table.
+  WhereExpr -> SelectFrom cols gets table -> SelectFrom cols gets table
 whereExprIntoSelectFrom wh (SelectFrom cols gets table (WHERE whs) orderBy) =
   SelectFrom cols gets table (WHERE (whs <> [wh])) orderBy
 
-whereVal :: forall col cols g gets table colType. Show col => IsSqlValue colType => ColOf col g colType table =>
+whereVal :: forall col cols g gets table colType.
+  Show col => IsSqlValue colType => ColOf col g colType table =>
   col
   -> Comparator
   -> colType

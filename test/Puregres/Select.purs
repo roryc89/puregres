@@ -101,7 +101,7 @@ innerJoinSelect = endSelect $
     ORDER_ID
   # from (
       users <<<
-      inner_join orders (on USER_ID ORDER_USER_ID)
+      inner_join orders (on USER_ID Eq ORDER_USER_ID)
     )
 
 expectedShowInnerJoinSelect :: String
@@ -122,11 +122,10 @@ whereSelect = endSelect $
     ORDER_ID
   # from (
       users <<<
-      inner_join orders (on USER_ID ORDER_USER_ID)
+      inner_join orders (on USER_ID Eq ORDER_USER_ID)
     )
   # whereVal NAME Eq Nothing
   # whereVal REGISTERED Eq true
-
 
 expectedShowWhereSelect :: String
 expectedShowWhereSelect =
@@ -148,7 +147,7 @@ orderBySelect = endSelect $
     ORDER_ID
   # from (
       users <<<
-      inner_join orders (on USER_ID ORDER_USER_ID)
+      inner_join orders (on USER_ID Eq ORDER_USER_ID)
     )
   # order_by EMAIL ASC
   # order_by REGISTERED DESC
