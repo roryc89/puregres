@@ -6,7 +6,6 @@ import Prelude
 import Control.Apply (lift2)
 import Data.Array (null)
 import Data.Foreign (F, Foreign)
-import Data.Monoid (mempty)
 import Data.Record.Builder as Builder
 import Data.String (joinWith)
 import Database.Postgres.SqlValue (SqlValue)
@@ -14,25 +13,20 @@ import Puregres.Class (class Params, params, class Col, class ColOf, getF)
 import Puregres.Comparator (Comparator)
 import Puregres.PostgresType (class PostgresType, postgresType)
 import Puregres.PuregresSqlValue (class IsSqlValue, toSql)
-import Puregres.Type (EndQuery(..), end)
+import Puregres.Type (EndQuery(EndQuery), TABLE(TABLE))
 import Puregres.Where (WHERE(..), WhereExpr(..), showWheres)
 
 
 -- INNER JOIN
 
-data INNER_JOIN a = INNER_JOIN String String (On a)
+data INNER_JOIN a = INNER_JOIN (On a)
 
-instance showINNER_JOIN :: (Show a) => Show (INNER_JOIN a) where
-  show (INNER_JOIN t next on) = "\n  INNER JOIN" <> t <> show on <> next
-
--- inner_join :: forall a b. Show b =>
---   (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
--- inner_join :: forall a b. Show b =>
---   (EndQuery -> b) -> (b -> On a) -> EndQuery -> INNER_JOIN a
-inner_join :: forall t117 t118. Show t118 => (EndQuery -> t118) -> (t118 -> On t117) -> EndQuery -> INNER_JOIN t117
-inner_join t o next = INNER_JOIN (show (t end)) (show next) (o (t next))
+instance showINNER_JOIN :: (Show a, Show next) => Show (INNER_JOIN (TABLE a next)) where
+  show (INNER_JOIN (On colStr (TABLE a next))) = "\n  INNER JOIN " <> show a <> " ON " <> colStr <> show next
 
 
+inner_join :: forall a b c. (a -> b) -> (b -> On c) -> a -> INNER_JOIN c
+inner_join t o next = INNER_JOIN (o (t next))
 
 data On a = On String a
 

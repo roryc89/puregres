@@ -140,3 +140,24 @@ instance colREGISTERED :: Col REGISTERED ({registered :: Boolean}) Boolean where
 instance colOfAAAREGISTEREDOrders :: ColOf REGISTERED ({registered :: Boolean}) Boolean (TABLE Users n)
 instance colOfTABLE_REGISTERED :: (ColOf REGISTERED ({registered :: Boolean}) Boolean b ) => ColOf REGISTERED ({registered :: Boolean}) Boolean (TABLE a b)
 instance colOfREGISTEREDINNER_JOIN :: (ColOf REGISTERED ({registered :: Boolean}) Boolean n) => ColOf REGISTERED ({registered :: Boolean}) Boolean (INNER_JOIN n)
+
+data Reviews = Reviews
+instance showReviews :: Show Reviews where show _ = "reviews"
+
+reviews :: forall a. a -> TABLE Reviews a
+reviews = TABLE Reviews
+
+data REVIEW_ID = REVIEW_ID
+
+instance showREVIEW_ID :: Show REVIEW_ID where
+  show _ = "reviews.review_id"
+
+instance colREVIEW_ID :: Col REVIEW_ID ({review_id :: Int}) Int where
+  getF _ f = do
+    review_id <- f ! "review_id" >>= decode_
+    pure $ {review_id}
+  colName _ = "review_id"
+
+instance colOfAAAREVIEW_IDOrders :: ColOf REVIEW_ID ({review_id :: Int}) Int (TABLE Reviews n)
+instance colOfTABLE_REVIEW_ID :: (ColOf REVIEW_ID ({review_id :: Int}) Int b ) => ColOf REVIEW_ID ({review_id :: Int}) Int (TABLE a b)
+instance colOfREVIEW_IDINNER_JOIN :: (ColOf REVIEW_ID ({review_id :: Int}) Int n) => ColOf REVIEW_ID ({review_id :: Int}) Int (INNER_JOIN n)

@@ -2,11 +2,11 @@ module Test.Puregres.Select where
 
 import Prelude
 
-import Puregres.Select (Direction(..), SelectEnded, endSelect, from, inner_join, on, order_by, select, whereAny, whereQuery, whereVal, (++))
-import Test.Puregres.TestDataNew (EMAIL(..), ITEM_ID(..), NAME(..), ORDER_ID(..), ORDER_USER_ID(..), REGISTERED(..), USER_ID(..), orders, users)
 import Control.Monad.Free (Free)
 import Data.Maybe (Maybe(..))
 import Puregres.Comparator (Comparator(..))
+import Puregres.Select (Direction(..), SelectEnded, endSelect, from, inner_join, on, order_by, select, whereAny, whereQuery, whereVal, (++))
+import Test.Puregres.TestDataNew (EMAIL(..), ITEM_ID(..), NAME(..), ORDER_ID(..), ORDER_USER_ID(..), REGISTERED(..), REVIEW_ID(..), USER_ID(..), orders, reviews, users)
 import Test.TestUtils (getParamStrings, getParamTypes)
 import Test.Unit (TestF, suite, test)
 import Test.Unit.Assert as Assert
@@ -29,6 +29,10 @@ runTest = suite "Test.Puregres.Select" do
       test "innerJoinSelect" do
 
         Assert.equal expectedShowInnerJoinSelect $ show innerJoinSelect
+
+      test "innerJoinMultipleSelect" do
+
+        Assert.equal expectedShowInnerJoinMultipleSelect $ show innerJoinMultipleSelect
 
       test "whereSelect" do
 
@@ -111,6 +115,29 @@ expectedShowInnerJoinSelect =
     orders.order_id
 FROM users
   INNER JOIN orders ON users.user_id = orders.user_id"""
+
+innerJoinMultipleSelect :: SelectEnded
+  { email :: String
+  , order_id :: Int
+  }
+innerJoinMultipleSelect = endSelect $
+  select
+    EMAIL ++
+    ORDER_ID
+  # from (
+      users <<<
+      inner_join orders (on USER_ID Eq ORDER_USER_ID) <<<
+      inner_join reviews (on ORDER_USER_ID Eq REVIEW_ID)
+    )
+
+expectedShowInnerJoinMultipleSelect :: String
+expectedShowInnerJoinMultipleSelect =
+  """SELECT
+    users.email,
+    orders.order_id
+FROM users
+  INNER JOIN orders ON users.user_id = orders.user_id
+  INNER JOIN reviews ON orders.user_id = reviews.review_id"""
 
 whereSelect :: SelectEnded
   { user_id :: Int
